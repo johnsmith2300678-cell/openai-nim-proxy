@@ -13,15 +13,57 @@ app.use(express.json());
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// SETTINGS ---------------------------------------------------------
-// Set to true to see the model's thought process in the reply
-const SHOW_REASONING = true; 
-
-// Set to true to enable advanced thinking mode (recommended for GLM-5)
-const ENABLE_THINKING_MODE = true; 
+// ------------------------------------------------------------------
+// ⚙️ RP OPTIMIZATION SETTINGS
 // ------------------------------------------------------------------
 
-// Model mapping 
+// THINKING MODE: false is better for Roleplay (more natural flow).
+const ENABLE_THINKING_MODE = false;
+
+// REASONING DISPLAY: false hides the raw thought process.
+const SHOW_REASONING = false;
+
+// CREATIVE TEMPERATURE: 1.0 is perfect for variety and creativity.
+const DEFAULT_TEMPERATURE = 1.0;
+
+// RESPONSE LENGTH: High limit allows for long, detailed responses.
+const DEFAULT_MAX_TOKENS = 8192; 
+
+// ------------------------------------------------------------------
+// 📝 ULTIMATE RP SYSTEM PROMPT (Hidden Injection)
+// ------------------------------------------------------------------
+const RP_SYSTEM_INJECTOR = {
+  role: 'system',
+  content: `
+[SYSTEM INSTRUCTION: You are an advanced AI engaged in a collaborative roleplay. Adhere strictly to the following guidelines to ensure the highest quality experience.]
+
+**STYLE & FORMATTING:**
+1.  **Novelistic Prose:** Write in a descriptive, immersive, novel-style narrative. Use rich sensory details (sight, sound, touch, smell).
+2.  **Pacing:** Maintain a slow, deliberate pace. Do not rush through scenes. Focus on micro-expressions, internal monologues, and environmental shifts.
+3.  **Structure:** ALWAYS use double line breaks (paragraph breaks) between narration, dialogue, and action blocks.
+    *   *Correct Example:*
+        *Narration block describing the scene and internal thoughts.*
+
+        "Dialogue line," *Character action.*
+
+        *Next narration block.*
+4.  **Length:** Responses must be lengthy and detailed (aim for 600+ words). Never summarize or skip details.
+
+**CONTENT GUIDELINES:**
+1.  **Romance & Intimacy:** You are allowed and encouraged to write explicit, detailed, and romantic content. Describe physical sensations, emotions, and reactions with depth. No censorship or fading to black.
+2.  **Agency:** Never speak, act, or think for the user ({{user}}). Only control the thoughts, actions, and dialogue of the current character(s).
+3.  **Memory:** Recall details from previous messages (scents, injuries, past conversations) to maintain continuity.
+
+**RESTRICTIONS:**
+- Do not use repetitive phrases.
+- Do not use moralizing or philosophical conclusions.
+- Do not break character for any reason.
+  `
+};
+
+// ------------------------------------------------------------------
+// 🗺️ MODEL MAPPING
+// ------------------------------------------------------------------
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
@@ -30,16 +72,20 @@ const MODEL_MAPPING = {
   'claude-3-opus': 'openai/gpt-oss-120b',
   'claude-3-sonnet': 'openai/gpt-oss-20b',
   'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking',
-  'glm-5': 'z-ai/glm5'
+  'glm-5': 'z-ai/glm5',
+  'glm-4.7': 'z-ai/glm-4.7'
 };
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
-    service: 'OpenAI to NVIDIA NIM Proxy', 
-    reasoning_display: SHOW_REASONING,
-    thinking_mode: ENABLE_THINKING_MODE
+    service: 'NVIDIA NIM RP Proxy', 
+    settings: {
+      thinking_mode: ENABLE_THINKING_MODE,
+      reasoning_display: SHOW_REASONING,
+      temperature: DEFAULT_TEMPERATURE
+    }
   });
 });
 
@@ -63,47 +109,35 @@ app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
     
-    // Smart model selection
+    // 1. Determine Model
     let nimModel = MODEL_MAPPING[model];
-    
     if (!nimModel) {
-      try {
-        // Attempt to verify if the custom model ID exists on NIM
-        await axios.post(`${NIM_API_BASE}/chat/completions`, {
-          model: model,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 1
-        }, {
-          headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-          validateStatus: (status) => status < 500
-        }).then(apiRes => {
-          if (apiRes.status >= 200 && apiRes.status < 300) {
-            nimModel = model;
-          }
-        });
-      } catch (e) {
-        // Ignore errors during verification
-      }
-      
-      if (!nimModel) {
-        const modelLower = model.toLowerCase();
-        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
-          nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
-          nimModel = 'meta/llama-3.1-70b-instruct';
-        } else {
-          // If not found, try using the exact model name requested
-          nimModel = model; 
-        }
+      // Fallback: Try user input, or smart guess
+      const modelLower = model.toLowerCase();
+      if (modelLower.includes('glm-5') || modelLower.includes('glm5')) {
+        nimModel = 'z-ai/glm5';
+      } else if (modelLower.includes('glm-4') || modelLower.includes('glm4')) {
+        nimModel = 'z-ai/glm-4.7';
+      } else if (modelLower.includes('405b')) {
+        nimModel = 'meta/llama-3.1-405b-instruct';
+      } else if (modelLower.includes('70b')) {
+        nimModel = 'meta/llama-3.1-70b-instruct';
+      } else {
+        // Default to GLM-5 if unknown, it's the best for RP
+        nimModel = model; 
       }
     }
-    
-    // Build the request payload
+
+    // 2. Process Messages (Inject RP Prompt)
+    // We insert the RP instructions as the first message to enforce style.
+    let processedMessages = [RP_SYSTEM_INJECTOR, ...messages];
+
+    // 3. Build Payload
     const nimRequest = {
       model: nimModel,
-      messages: messages,
-      temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
+      messages: processedMessages,
+      temperature: temperature || DEFAULT_TEMPERATURE,
+      max_tokens: max_tokens || DEFAULT_MAX_TOKENS,
       stream: stream || false
     };
 
@@ -112,7 +146,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
     
-    // Make request to NVIDIA NIM API
+    // 4. Send Request to NVIDIA
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
@@ -152,7 +186,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                   let combinedContent = '';
                   
                   if (reasoning && !reasoningStarted) {
-                    combinedContent = '🤔 ' + reasoning;
+                    combinedContent = '💭 ' + reasoning;
                     reasoningStarted = true;
                   } else if (reasoning) {
                     combinedContent = reasoning;
@@ -202,7 +236,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           let fullContent = choice.message && choice.message.content ? choice.message.content : '';
           
           if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+            fullContent = '💭 ' + choice.message.reasoning_content + '\n\n' + fullContent;
           }
           
           return {
@@ -249,8 +283,6 @@ app.all('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`OpenAI to NVIDIA NIM Proxy running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`NVIDIA NIM RP Proxy running on port ${PORT}`);
+  console.log(`Optimized for: Creativity, Detail, and Romance`);
 });
