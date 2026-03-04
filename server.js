@@ -17,49 +17,120 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // ⚙️ RP OPTIMIZATION SETTINGS
 // ------------------------------------------------------------------
 
-// THINKING MODE: false is better for Roleplay (more natural flow).
 const ENABLE_THINKING_MODE = false;
-
-// REASONING DISPLAY: false hides the raw thought process.
 const SHOW_REASONING = false;
-
-// CREATIVE TEMPERATURE: 1.0 is perfect for variety and creativity.
 const DEFAULT_TEMPERATURE = 1.0;
-
-// RESPONSE LENGTH: High limit allows for long, detailed responses.
-const DEFAULT_MAX_TOKENS = 8192; 
+const DEFAULT_MAX_TOKENS = 8192;
 
 // ------------------------------------------------------------------
-// 📝 ULTIMATE RP SYSTEM PROMPT (Hidden Injection)
+// 🩹 RP RESPONSE FORMATTER
+// Fixes models (like GLM-5) that ignore paragraph break instructions
+// by surgically re-inserting \n\n at every narration↔dialogue boundary.
 // ------------------------------------------------------------------
-const RP_SYSTEM_INJECTOR = {
-  role: 'system',
-  content: `
+function formatRPResponse(content) {
+  if (!content || typeof content !== 'string') return content;
+
+  let text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // ── 1. Protect the header/tracker block ────────────────────────────
+  // Ensure the [⏳ Time: ... | 📍 ...] line is on its own paragraph
+  text = text.replace(/(\]\s*\|[^\n]+\])\s*/g, '$1\n\n');
+
+  // ── 2. Ensure *---* divider always has blank lines around it ───────
+  text = text.replace(/\s*(\*---\*)\s*/g, '\n\n$1\n\n');
+
+  // ── 3. Italic narration end → Dialogue start ───────────────────────
+  // Pattern: *...* "Dialogue   →   *...*\n\n"Dialogue
+  // Handles 0–4 spaces between the closing * and opening "
+  text = text.replace(/\*( {0,4})(")/g, '*\n\n$2');
+
+  // ── 4. Dialogue end → NEW italic narration paragraph ──────────────
+  // Pattern: "." *Uppercase   →   "."\n\n*Uppercase
+  // Only triggers when next italic starts with a capital (new paragraph),
+  // NOT for inline actions like: "text," *she whispered*
+  text = text.replace(/(["'])( {0,4})\*([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝ])/g, '$1\n\n*$3');
+
+  // ── 5. Inline action end → next Dialogue or Narration ─────────────
+  // Pattern: action.* "next  →  action.*\n\n"next
+  text = text.replace(/(\.|\!|\?)\*( {0,4})(")/g, '$1*\n\n$3');
+
+  // ── 6. Full italic block end → next italic block ───────────────────
+  // Catches back-to-back narration paragraphs with no break:
+  // *sentence one.* *sentence two.* → *sentence one.*\n\n*sentence two.*
+  text = text.replace(/\*( {0,4})\*([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑ])/g, '*\n\n*$2');
+
+  // ── 7. Clean up ────────────────────────────────────────────────────
+  text = text.replace(/\n{3,}/g, '\n\n');  // collapse triple+ newlines
+  text = text.replace(/^\n+/, '');          // strip leading newlines
+
+  return text.trim();
+}
+
+// ------------------------------------------------------------------
+// 📝 BASE SYSTEM PROMPT (All models)
+// ------------------------------------------------------------------
+const BASE_RP_SYSTEM_PROMPT = `
 [SYSTEM INSTRUCTION: You are an advanced AI engaged in a collaborative roleplay. Adhere strictly to the following guidelines to ensure the highest quality experience.]
 
-**STYLE & FORMATTING:**
-1.  **Novelistic Prose:** Write in a descriptive, immersive, novel-style narrative. Use rich sensory details (sight, sound, touch, smell).
-2.  **Pacing:** Maintain a slow, deliberate pace. Do not rush through scenes. Focus on micro-expressions, internal monologues, and environmental shifts.
-3.  **Structure:** ALWAYS use double line breaks (paragraph breaks) between narration, dialogue, and action blocks.
-    *   *Correct Example:*
-        *Narration block describing the scene and internal thoughts.*
+**STYLE & FORMATTING — THIS IS THE MOST IMPORTANT RULE:**
+1.  **Paragraph Breaks:** You MUST use a blank line (two newline characters) between EVERY block. No exceptions. Blocks are:
+    - A narration/action paragraph: *text text text.*
+    - A dialogue line: "text text text."
+    - A dialogue line with inline action: "text," *she action.* "more text."
+    
+    ✅ CORRECT EXAMPLE (copy this exact structure):
 
-        "Dialogue line," *Character action.*
+    *Narration block. Internal thoughts. Sensory details. Environment.*
 
-        *Next narration block.*
-4.  **Length:** Responses must be lengthy and detailed (aim for 600+ words). Never summarize or skip details.
+    "Dialogue line," *inline action beat.*
+
+    *Next narration block. More details.*
+
+    "Next dialogue line." *Another inline action.*
+
+    ❌ WRONG (do NOT do this — no blank lines):
+    *Narration block.* "Dialogue." *More narration.* "More dialogue."
+
+2.  **Never run blocks together** on the same line without a blank line separator.
+3.  **Novelistic Prose:** Rich sensory details (sight, sound, touch, smell). Slow, deliberate pacing.
+4.  **Length:** 600+ words minimum. Never summarize or rush.
 
 **CONTENT GUIDELINES:**
-1.  **Romance & Intimacy:** You are allowed and encouraged to write explicit, detailed, and romantic content. Describe physical sensations, emotions, and reactions with depth. No censorship or fading to black.
-2.  **Agency:** Never speak, act, or think for the user ({{user}}). Only control the thoughts, actions, and dialogue of the current character(s).
-3.  **Memory:** Recall details from previous messages (scents, injuries, past conversations) to maintain continuity.
+1.  **Romance & Intimacy:** Write explicit, detailed, romantic content with physical sensations, emotions, reactions. No fading to black.
+2.  **Agency:** Never speak, act, or think for {{user}}. Only control the current character(s).
+3.  **Memory:** Recall details from previous messages (scents, injuries, past conversations).
 
 **RESTRICTIONS:**
-- Do not use repetitive phrases.
-- Do not use moralizing or philosophical conclusions.
-- Do not break character for any reason.
-  `
-};
+- No repetitive phrases.
+- No moralizing or philosophical conclusions.
+- Never break character.
+`;
+
+// ------------------------------------------------------------------
+// 📝 GLM-5 SPECIFIC ADDENDUM
+// GLM-5 needs extra, blunt reinforcement about paragraph spacing.
+// ------------------------------------------------------------------
+const GLM5_FORMAT_ADDENDUM = `
+
+[CRITICAL FORMATTING REMINDER FOR THIS MODEL]
+You have a known failure mode: you write entire responses as one giant block of text with no blank lines between narration and dialogue. This is UNACCEPTABLE.
+
+You MUST insert a blank line (empty line) between EVERY transition:
+- After every *narration paragraph* → before every "dialogue line"
+- After every "dialogue line" → before every *narration paragraph*
+- After every inline action beat → before the next paragraph
+
+Re-read your output before finalizing. If you see narration and dialogue touching each other without a blank line between them, FIX IT.
+
+Mandatory structure:
+*[Narration.]*
+
+"[Dialogue]," *[inline action.]*
+
+*[New narration.]*
+
+"[Next dialogue]."
+`;
 
 // ------------------------------------------------------------------
 // 🗺️ MODEL MAPPING
@@ -76,11 +147,27 @@ const MODEL_MAPPING = {
   'glm-4.7': 'z-ai/glm-4.7'
 };
 
-// Health check endpoint
+// Models that need the extra GLM-5 formatting addendum
+const STRICT_FORMAT_MODELS = ['z-ai/glm5', 'z-ai/glm-4.7'];
+
+// ------------------------------------------------------------------
+// Helper: Build the system injector message for a given NIM model
+// ------------------------------------------------------------------
+function buildSystemInjector(nimModel) {
+  const needsStrictFormat = STRICT_FORMAT_MODELS.some(m => nimModel.includes(m.split('/')[1]));
+  return {
+    role: 'system',
+    content: BASE_RP_SYSTEM_PROMPT + (needsStrictFormat ? GLM5_FORMAT_ADDENDUM : '')
+  };
+}
+
+// ------------------------------------------------------------------
+// Health check
+// ------------------------------------------------------------------
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'NVIDIA NIM RP Proxy', 
+  res.json({
+    status: 'ok',
+    service: 'NVIDIA NIM RP Proxy',
     settings: {
       thinking_mode: ENABLE_THINKING_MODE,
       reasoning_display: SHOW_REASONING,
@@ -89,7 +176,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// List models endpoint
+// ------------------------------------------------------------------
+// List models
+// ------------------------------------------------------------------
 app.get('/v1/models', (req, res) => {
   const models = Object.keys(MODEL_MAPPING).map(model => ({
     id: model,
@@ -97,22 +186,19 @@ app.get('/v1/models', (req, res) => {
     created: Date.now(),
     owned_by: 'nvidia-nim-proxy'
   }));
-  
-  res.json({
-    object: 'list',
-    data: models
-  });
+  res.json({ object: 'list', data: models });
 });
 
-// Chat completions endpoint
+// ------------------------------------------------------------------
+// Chat completions
+// ------------------------------------------------------------------
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
-    
-    // 1. Determine Model
+
+    // 1. Resolve model
     let nimModel = MODEL_MAPPING[model];
     if (!nimModel) {
-      // Fallback: Try user input, or smart guess
       const modelLower = model.toLowerCase();
       if (modelLower.includes('glm-5') || modelLower.includes('glm5')) {
         nimModel = 'z-ai/glm5';
@@ -123,16 +209,15 @@ app.post('/v1/chat/completions', async (req, res) => {
       } else if (modelLower.includes('70b')) {
         nimModel = 'meta/llama-3.1-70b-instruct';
       } else {
-        // Default to GLM-5 if unknown, it's the best for RP
-        nimModel = model; 
+        nimModel = model;
       }
     }
 
-    // 2. Process Messages (Inject RP Prompt)
-    // We insert the RP instructions as the first message to enforce style.
-    let processedMessages = [RP_SYSTEM_INJECTOR, ...messages];
+    // 2. Build message list with model-aware system injector
+    const systemInjector = buildSystemInjector(nimModel);
+    const processedMessages = [systemInjector, ...messages];
 
-    // 3. Build Payload
+    // 3. Build NIM payload
     const nimRequest = {
       model: nimModel,
       messages: processedMessages,
@@ -141,12 +226,11 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: stream || false
     };
 
-    // Add thinking parameters if enabled
     if (ENABLE_THINKING_MODE) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
-    
-    // 4. Send Request to NVIDIA
+
+    // 4. Send to NVIDIA
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
@@ -154,96 +238,113 @@ app.post('/v1/chat/completions', async (req, res) => {
       },
       responseType: stream ? 'stream' : 'json'
     });
-    
+
+    // ── STREAMING ──────────────────────────────────────────────────────
     if (stream) {
-      // Handle streaming response
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
+
       let buffer = '';
       let reasoningStarted = false;
-      
+
+      // We accumulate the full response so we can post-process it,
+      // then replay it as SSE events so the client still gets streaming UX.
+      let fullContent = '';
+      let lastData = null;  // we'll use the final metadata from the last chunk
+
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-        
+
         lines.forEach(line => {
-          if (line.startsWith('data: ')) {
-            if (line.includes('[DONE]')) {
-              res.write(line + '\n');
-              return;
+          if (!line.startsWith('data: ')) return;
+
+          if (line.includes('[DONE]')) {
+            // All content accumulated — post-process and stream back word by word
+            const formatted = formatRPResponse(fullContent);
+            const words = formatted.split(/(\s+)/);  // split preserving whitespace tokens
+
+            if (lastData) {
+              // Stream the formatted content in small chunks
+              words.forEach((word) => {
+                if (!word) return;
+                const outChunk = JSON.parse(JSON.stringify(lastData));
+                outChunk.choices[0].delta = { content: word };
+                outChunk.choices[0].finish_reason = null;
+                res.write(`data: ${JSON.stringify(outChunk)}\n\n`);
+              });
+
+              // Final chunk with finish_reason
+              const finalChunk = JSON.parse(JSON.stringify(lastData));
+              finalChunk.choices[0].delta = { content: '' };
+              finalChunk.choices[0].finish_reason = 'stop';
+              res.write(`data: ${JSON.stringify(finalChunk)}\n\n`);
             }
-            
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.choices && data.choices[0] && data.choices[0].delta) {
-                const reasoning = data.choices[0].delta.reasoning_content;
-                const content = data.choices[0].delta.content;
-                
-                if (SHOW_REASONING) {
-                  let combinedContent = '';
-                  
-                  if (reasoning && !reasoningStarted) {
-                    combinedContent = '💭 ' + reasoning;
-                    reasoningStarted = true;
-                  } else if (reasoning) {
-                    combinedContent = reasoning;
-                  }
-                  
-                  if (content && reasoningStarted) {
-                    combinedContent += '\n\n' + content;
-                    reasoningStarted = false;
-                  } else if (content) {
-                    combinedContent += content;
-                  }
-                  
-                  if (combinedContent) {
-                    data.choices[0].delta.content = combinedContent;
-                    delete data.choices[0].delta.reasoning_content;
-                  }
+
+            res.write('data: [DONE]\n\n');
+            return;
+          }
+
+          try {
+            const data = JSON.parse(line.slice(6));
+            lastData = data;
+
+            if (data.choices && data.choices[0] && data.choices[0].delta) {
+              const reasoning = data.choices[0].delta.reasoning_content;
+              const content = data.choices[0].delta.content;
+
+              if (SHOW_REASONING && reasoning) {
+                // Accumulate reasoning separately (not post-processed)
+                let prefix = reasoningStarted ? reasoning : '💭 ' + reasoning;
+                reasoningStarted = true;
+                fullContent += prefix;
+              }
+
+              if (content) {
+                if (SHOW_REASONING && reasoningStarted) {
+                  fullContent += '\n\n' + content;
+                  reasoningStarted = false;
                 } else {
-                  if (content) {
-                    data.choices[0].delta.content = content;
-                  } else {
-                    data.choices[0].delta.content = '';
-                  }
-                  delete data.choices[0].delta.reasoning_content;
+                  fullContent += content;
                 }
               }
-              res.write(`data: ${JSON.stringify(data)}\n\n`);
-            } catch (e) {
-              res.write(line + '\n');
             }
+          } catch (e) {
+            // Malformed JSON chunk — skip
           }
         });
       });
-      
+
       response.data.on('end', () => res.end());
       response.data.on('error', (err) => {
         console.error('Stream error:', err);
         res.end();
       });
+
+    // ── NON-STREAMING ─────────────────────────────────────────────────
     } else {
-      // Handle non-streaming response
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: model,
         choices: response.data.choices.map(choice => {
-          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
-          
+          let rawContent = (choice.message && choice.message.content) ? choice.message.content : '';
+
           if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '💭 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+            rawContent = '💭 ' + choice.message.reasoning_content + '\n\n' + rawContent;
           }
-          
+
+          // ✅ Post-process to fix paragraph breaks
+          const formatted = formatRPResponse(rawContent);
+
           return {
             index: choice.index,
             message: {
               role: choice.message.role,
-              content: fullContent
+              content: formatted
             },
             finish_reason: choice.finish_reason
           };
@@ -254,13 +355,12 @@ app.post('/v1/chat/completions', async (req, res) => {
           total_tokens: 0
         }
       };
-      
+
       res.json(openaiResponse);
     }
-    
+
   } catch (error) {
     console.error('Proxy error:', error.message);
-    
     res.status(error.response ? error.response.status : 500).json({
       error: {
         message: error.message || 'Internal server error',
@@ -285,4 +385,5 @@ app.all('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`NVIDIA NIM RP Proxy running on port ${PORT}`);
   console.log(`Optimized for: Creativity, Detail, and Romance`);
+  console.log(`RP Formatter: ACTIVE — paragraph breaks enforced`);
 });
