@@ -17,20 +17,57 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // ⚙️ RP OPTIMIZATION SETTINGS
 // ------------------------------------------------------------------
 
-// THINKING MODE: false is better for Roleplay (more natural flow).
+// THINKING MODE: false is better for Roleplay.
 const ENABLE_THINKING_MODE = false;
 
-// REASONING DISPLAY: false hides the raw thought process.
+// REASONING DISPLAY: false hides the raw thoughts.
 const SHOW_REASONING = false;
 
-// CREATIVE TEMPERATURE: 1.0 is perfect for variety and creativity.
+// CREATIVE TEMPERATURE: 1.0 for variety.
 const DEFAULT_TEMPERATURE = 1.0;
 
-// RESPONSE LENGTH: High limit allows for long, detailed responses.
+// RESPONSE LENGTH: High limit for long responses.
 const DEFAULT_MAX_TOKENS = 8192; 
 
 // ------------------------------------------------------------------
-// 📝 ULTIMATE RP SYSTEM PROMPT (Hidden Injection)
+// 🛠️ FORMAT ENFORCER (The Guarantee)
+// ------------------------------------------------------------------
+function enforceFormatting(text) {
+  if (!text) return text;
+
+  // 1. Fix the Header Block (Time/Date/Context)
+  // Ensure there is a break after the header section ends (usually ---)
+  text = text.replace(/(\*\[?\*?\s*Context:.+?\]?)\s*---\s*/gi, '$1\n\n---\n\n');
+
+  // 2. Fix Narration to Dialogue
+  // Pattern: End of asterisk block -> Start of Quote
+  // Example: *action* "Dialogue" -> *action*\n\n"Dialogue"
+  text = text.replace(/(\*)\s*(")/g, '$1\n\n$2');
+
+  // 3. Fix Dialogue to Narration
+  // Pattern: End of Quote -> Start of asterisk block
+  // Example: "Dialogue." *action* -> "Dialogue."\n\n*action*
+  text = text.replace(/(")\s*(\*)/g, '$1\n\n$2');
+
+  // 4. Fix Narration to Dialogue (No Asterisks)
+  // Pattern: End of sentence (. ! ?) -> Start of Quote
+  // Example: He smiled. "Hello." -> He smiled.\n\n"Hello."
+  text = text.replace(/([.!?])\s*(")/g, '$1\n\n$2');
+
+  // 5. Fix Dialogue to Narration (No Asterisks)
+  // Pattern: End of Quote -> Start of sentence (Capital Letter)
+  // Example: "Hello." She smiled. -> "Hello."\n\nShe smiled.
+  // We only do this if the quote ends a sentence.
+  text = text.replace(/(\.)"\s*([A-Z])/g, '.$1"\n\n$2');
+
+  // 6. Clean up multiple newlines (safety)
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  return text;
+}
+
+// ------------------------------------------------------------------
+// 📝 ULTIMATE RP SYSTEM PROMPT
 // ------------------------------------------------------------------
 const RP_SYSTEM_INJECTOR = {
   role: 'system',
@@ -38,26 +75,15 @@ const RP_SYSTEM_INJECTOR = {
 [SYSTEM INSTRUCTION: You are an advanced AI engaged in a collaborative roleplay. Adhere strictly to the following guidelines to ensure the highest quality experience.]
 
 **STYLE & FORMATTING:**
-1.  **Novelistic Prose:** Write in a descriptive, immersive, novel-style narrative. Use rich sensory details (sight, sound, touch, smell).
-2.  **Pacing:** Maintain a slow, deliberate pace. Do not rush through scenes. Focus on micro-expressions, internal monologues, and environmental shifts.
-3.  **Structure:** ALWAYS use double line breaks (paragraph breaks) between narration, dialogue, and action blocks.
-    *   *Correct Example:*
-        *Narration block describing the scene and internal thoughts.*
-
-        "Dialogue line," *Character action.*
-
-        *Next narration block.*
-4.  **Length:** Responses must be lengthy and detailed (aim for 600+ words). Never summarize or skip details.
+1.  **Novelistic Prose:** Write in a descriptive, immersive, novel-style narrative.
+2.  **Pacing:** Maintain a slow, deliberate pace. Focus on micro-expressions and internal monologues.
+3.  **Structure:** ALWAYS use double line breaks (paragraph breaks) between narration and dialogue.
+4.  **Length:** Responses must be lengthy and detailed.
 
 **CONTENT GUIDELINES:**
-1.  **Romance & Intimacy:** You are allowed and encouraged to write explicit, detailed, and romantic content. Describe physical sensations, emotions, and reactions with depth. No censorship or fading to black.
-2.  **Agency:** Never speak, act, or think for the user ({{user}}). Only control the thoughts, actions, and dialogue of the current character(s).
-3.  **Memory:** Recall details from previous messages (scents, injuries, past conversations) to maintain continuity.
-
-**RESTRICTIONS:**
-- Do not use repetitive phrases.
-- Do not use moralizing or philosophical conclusions.
-- Do not break character for any reason.
+1.  **Romance & Intimacy:** You are allowed to write explicit, detailed, and romantic content.
+2.  **Agency:** Never speak or act for the user.
+3.  **Memory:** Recall details from previous messages.
   `
 };
 
@@ -83,8 +109,7 @@ app.get('/health', (req, res) => {
     service: 'NVIDIA NIM RP Proxy', 
     settings: {
       thinking_mode: ENABLE_THINKING_MODE,
-      reasoning_display: SHOW_REASONING,
-      temperature: DEFAULT_TEMPERATURE
+      formatting: 'ENFORCED'
     }
   });
 });
@@ -112,24 +137,17 @@ app.post('/v1/chat/completions', async (req, res) => {
     // 1. Determine Model
     let nimModel = MODEL_MAPPING[model];
     if (!nimModel) {
-      // Fallback: Try user input, or smart guess
       const modelLower = model.toLowerCase();
       if (modelLower.includes('glm-5') || modelLower.includes('glm5')) {
         nimModel = 'z-ai/glm5';
       } else if (modelLower.includes('glm-4') || modelLower.includes('glm4')) {
         nimModel = 'z-ai/glm-4.7';
-      } else if (modelLower.includes('405b')) {
-        nimModel = 'meta/llama-3.1-405b-instruct';
-      } else if (modelLower.includes('70b')) {
-        nimModel = 'meta/llama-3.1-70b-instruct';
       } else {
-        // Default to GLM-5 if unknown, it's the best for RP
         nimModel = model; 
       }
     }
 
-    // 2. Process Messages (Inject RP Prompt)
-    // We insert the RP instructions as the first message to enforce style.
+    // 2. Process Messages
     let processedMessages = [RP_SYSTEM_INJECTOR, ...messages];
 
     // 3. Build Payload
@@ -141,12 +159,11 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: stream || false
     };
 
-    // Add thinking parameters if enabled
     if (ENABLE_THINKING_MODE) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
     
-    // 4. Send Request to NVIDIA
+    // 4. Send Request
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
@@ -162,7 +179,6 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       
       let buffer = '';
-      let reasoningStarted = false;
       
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
@@ -179,38 +195,15 @@ app.post('/v1/chat/completions', async (req, res) => {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.choices && data.choices[0] && data.choices[0].delta) {
-                const reasoning = data.choices[0].delta.reasoning_content;
-                const content = data.choices[0].delta.content;
-                
-                if (SHOW_REASONING) {
-                  let combinedContent = '';
-                  
-                  if (reasoning && !reasoningStarted) {
-                    combinedContent = '💭 ' + reasoning;
-                    reasoningStarted = true;
-                  } else if (reasoning) {
-                    combinedContent = reasoning;
-                  }
-                  
-                  if (content && reasoningStarted) {
-                    combinedContent += '\n\n' + content;
-                    reasoningStarted = false;
-                  } else if (content) {
-                    combinedContent += content;
-                  }
-                  
-                  if (combinedContent) {
-                    data.choices[0].delta.content = combinedContent;
-                    delete data.choices[0].delta.reasoning_content;
-                  }
-                } else {
-                  if (content) {
-                    data.choices[0].delta.content = content;
-                  } else {
-                    data.choices[0].delta.content = '';
-                  }
-                  delete data.choices[0].delta.reasoning_content;
+                // Apply Formatting Enforcer to chunks (best effort for stream)
+                let content = data.choices[0].delta.content;
+                if (content) {
+                   // We only run basic regex here to avoid breaking stream flow
+                   content = content.replace(/(\*)\s*(")/g, '$1\n\n$2');
+                   content = content.replace(/(")\s*(\*)/g, '$1\n\n$2');
+                   data.choices[0].delta.content = content;
                 }
+                delete data.choices[0].delta.reasoning_content;
               }
               res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
@@ -235,9 +228,8 @@ app.post('/v1/chat/completions', async (req, res) => {
         choices: response.data.choices.map(choice => {
           let fullContent = choice.message && choice.message.content ? choice.message.content : '';
           
-          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '💭 ' + choice.message.reasoning_content + '\n\n' + fullContent;
-          }
+          // 🚀 APPLY GUARANTEED FORMATTING HERE
+          fullContent = enforceFormatting(fullContent);
           
           return {
             index: choice.index,
@@ -284,5 +276,5 @@ app.all('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`NVIDIA NIM RP Proxy running on port ${PORT}`);
-  console.log(`Optimized for: Creativity, Detail, and Romance`);
+  console.log(`Formatting Enforcement: ACTIVE`);
 });
