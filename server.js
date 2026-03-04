@@ -17,87 +17,48 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // ⚙️ RP OPTIMIZATION SETTINGS
 // ------------------------------------------------------------------
 
-const ENABLE_THINKING_MODE = false; // False is best for RP
+// THINKING MODE: false is better for Roleplay (more natural flow).
+const ENABLE_THINKING_MODE = false;
+
+// REASONING DISPLAY: false hides the raw thought process.
 const SHOW_REASONING = false;
+
+// CREATIVE TEMPERATURE: 1.0 is perfect for variety and creativity.
 const DEFAULT_TEMPERATURE = 1.0;
+
+// RESPONSE LENGTH: High limit allows for long, detailed responses.
 const DEFAULT_MAX_TOKENS = 8192; 
 
 // ------------------------------------------------------------------
-// 🛠️ NOVEL FORMAT ENFORCER (Advanced Logic)
-// ------------------------------------------------------------------
-function enforceFormatting(text) {
-  if (!text) return text;
-
-  // 1. Fix the Header Block (Time/Date/Context)
-  // Ensure proper breaks around the header separator
-  text = text.replace(/\]\s*\n*\s*---/g, ']\n\n---\n\n');
-  text = text.replace(/---\s*\n*\s*(?!\n)/g, '---\n\n');
-
-  // 2. Fix the broken pattern: "Dialogue"\n\n*she said.*
-  // This is the specific bad format you showed.
-  // Pattern: "Quote" [newlines] *action*
-  text = text.replace(/("|”)\n+\s*(\*)/g, '$1\n\n$2');
-
-  // 3. Fix: *action* "Dialogue" -> Ensure break
-  text = text.replace(/(\*)\s*("|“)/g, '$1\n\n$2');
-
-  // 4. Fix: "Dialogue." *action* -> Ensure break
-  text = text.replace(/("|”)\s*(\*)/g, '$1\n\n$2');
-
-  // 5. Fix: Sentence. "Dialogue" -> Ensure break
-  text = text.replace(/([.!?])\s*("|“)/g, '$1\n\n$2');
-
-  // 6. Fix: "Dialogue." She said. -> Ensure break (narration without asterisks)
-  text = text.replace(/("|”)\s*([A-Z][a-z])/g, '$1\n\n$2');
-
-  // 7. Fix orphaned asterisks at end of dialogue blocks
-  // Pattern: "Dialogue. *" -> "Dialogue."\n\n*
-  text = text.replace(/("\s*)\*(?!\s)/g, '$1\n\n*');
-
-  // 8. Fix dialogue that ends with weird asterisk placement
-  // "text.*" -> "text." * 
-  text = text.replace(/(\w)\s*\*(")/g, '$1$2\n\n*');
-
-  // 9. Clean up any triple+ newlines
-  text = text.replace(/\n{3,}/g, '\n\n');
-
-  // 10. Remove any weird leading/trailing whitespace on lines
-  text = text.split('\n').map(line => line.trim()).join('\n');
-
-  return text;
-}
-
-// ------------------------------------------------------------------
-// 📝 NOVEL-STYLE SYSTEM PROMPT
+// 📝 ULTIMATE RP SYSTEM PROMPT (Hidden Injection)
 // ------------------------------------------------------------------
 const RP_SYSTEM_INJECTOR = {
   role: 'system',
-  content: `[SYSTEM INSTRUCTION: You are writing a novel. Follow these rules STRICTLY.]
+  content: `
+[SYSTEM INSTRUCTION: You are an advanced AI engaged in a collaborative roleplay. Adhere strictly to the following guidelines to ensure the highest quality experience.]
 
-**FORMAT (Most Important):**
-- Use asterisks (*) for narration/action.
-- Use quotes (") for spoken dialogue.
-- ALWAYS put dialogue on its own line, separated by a blank line from narration.
+**STYLE & FORMATTING:**
+1.  **Novelistic Prose:** Write in a descriptive, immersive, novel-style narrative. Use rich sensory details (sight, sound, touch, smell).
+2.  **Pacing:** Maintain a slow, deliberate pace. Do not rush through scenes. Focus on micro-expressions, internal monologues, and environmental shifts.
+3.  **Structure:** ALWAYS use double line breaks (paragraph breaks) between narration, dialogue, and action blocks.
+    *   *Correct Example:*
+        *Narration block describing the scene and internal thoughts.*
 
-**CORRECT Example:**
-*She walked across the room, her footsteps light on the wooden floor. Her fingers traced the edge of the bookshelf.*
+        "Dialogue line," *Character action.*
 
-"I've been looking for this," *she said, her voice soft.*
+        *Next narration block.*
+4.  **Length:** Responses must be lengthy and detailed (aim for 600+ words). Never summarize or skip details.
 
-*He looked up from his desk, surprise flickering in his eyes.*
+**CONTENT GUIDELINES:**
+1.  **Romance & Intimacy:** You are allowed and encouraged to write explicit, detailed, and romantic content. Describe physical sensations, emotions, and reactions with depth. No censorship or fading to black.
+2.  **Agency:** Never speak, act, or think for the user ({{user}}). Only control the thoughts, actions, and dialogue of the current character(s).
+3.  **Memory:** Recall details from previous messages (scents, injuries, past conversations) to maintain continuity.
 
-**WRONG (Never do this):**
-*She walked across the room.* "I've been looking for this," *she said.* *He looked up.*
-
-**WRONG (Never do this):**
-"I've been looking for this."
-*she said, her voice soft.*
-
-**STYLE:**
-- Write in immersive, novelistic prose.
-- Focus on sensory details.
-- Slow pacing.
-- Long, detailed responses.`
+**RESTRICTIONS:**
+- Do not use repetitive phrases.
+- Do not use moralizing or philosophical conclusions.
+- Do not break character for any reason.
+  `
 };
 
 // ------------------------------------------------------------------
@@ -120,7 +81,11 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'NVIDIA NIM RP Proxy', 
-    formatting: 'NOVEL_ENFORCED' 
+    settings: {
+      thinking_mode: ENABLE_THINKING_MODE,
+      reasoning_display: SHOW_REASONING,
+      temperature: DEFAULT_TEMPERATURE
+    }
   });
 });
 
@@ -147,17 +112,24 @@ app.post('/v1/chat/completions', async (req, res) => {
     // 1. Determine Model
     let nimModel = MODEL_MAPPING[model];
     if (!nimModel) {
+      // Fallback: Try user input, or smart guess
       const modelLower = model.toLowerCase();
       if (modelLower.includes('glm-5') || modelLower.includes('glm5')) {
         nimModel = 'z-ai/glm5';
       } else if (modelLower.includes('glm-4') || modelLower.includes('glm4')) {
         nimModel = 'z-ai/glm-4.7';
+      } else if (modelLower.includes('405b')) {
+        nimModel = 'meta/llama-3.1-405b-instruct';
+      } else if (modelLower.includes('70b')) {
+        nimModel = 'meta/llama-3.1-70b-instruct';
       } else {
+        // Default to GLM-5 if unknown, it's the best for RP
         nimModel = model; 
       }
     }
 
-    // 2. Process Messages
+    // 2. Process Messages (Inject RP Prompt)
+    // We insert the RP instructions as the first message to enforce style.
     let processedMessages = [RP_SYSTEM_INJECTOR, ...messages];
 
     // 3. Build Payload
@@ -169,11 +141,12 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: stream || false
     };
 
+    // Add thinking parameters if enabled
     if (ENABLE_THINKING_MODE) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
     
-    // 4. Send Request
+    // 4. Send Request to NVIDIA
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
@@ -189,6 +162,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       
       let buffer = '';
+      let reasoningStarted = false;
       
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
@@ -205,15 +179,38 @@ app.post('/v1/chat/completions', async (req, res) => {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.choices && data.choices[0] && data.choices[0].delta) {
-                // We apply formatting to chunks too, just in case
-                let content = data.choices[0].delta.content;
-                if (content) {
-                   // Basic streaming fixes
-                   content = content.replace(/(\*)\s*(")/g, '$1\n\n$2');
-                   content = content.replace(/(")\s*(\*)/g, '$1\n\n$2');
-                   data.choices[0].delta.content = content;
+                const reasoning = data.choices[0].delta.reasoning_content;
+                const content = data.choices[0].delta.content;
+                
+                if (SHOW_REASONING) {
+                  let combinedContent = '';
+                  
+                  if (reasoning && !reasoningStarted) {
+                    combinedContent = '💭 ' + reasoning;
+                    reasoningStarted = true;
+                  } else if (reasoning) {
+                    combinedContent = reasoning;
+                  }
+                  
+                  if (content && reasoningStarted) {
+                    combinedContent += '\n\n' + content;
+                    reasoningStarted = false;
+                  } else if (content) {
+                    combinedContent += content;
+                  }
+                  
+                  if (combinedContent) {
+                    data.choices[0].delta.content = combinedContent;
+                    delete data.choices[0].delta.reasoning_content;
+                  }
+                } else {
+                  if (content) {
+                    data.choices[0].delta.content = content;
+                  } else {
+                    data.choices[0].delta.content = '';
+                  }
+                  delete data.choices[0].delta.reasoning_content;
                 }
-                delete data.choices[0].delta.reasoning_content;
               }
               res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
@@ -229,7 +226,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         res.end();
       });
     } else {
-      // Handle non-streaming response (GUARANTEED FIX)
+      // Handle non-streaming response
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -238,8 +235,9 @@ app.post('/v1/chat/completions', async (req, res) => {
         choices: response.data.choices.map(choice => {
           let fullContent = choice.message && choice.message.content ? choice.message.content : '';
           
-          // 🚀 APPLY NOVEL FORMATTING HERE
-          fullContent = enforceFormatting(fullContent);
+          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
+            fullContent = '💭 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+          }
           
           return {
             index: choice.index,
@@ -286,5 +284,5 @@ app.all('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`NVIDIA NIM RP Proxy running on port ${PORT}`);
-  console.log(`Formatting Mode: NOVEL ENFORCED (MERGED)`);
+  console.log(`Optimized for: Creativity, Detail, and Romance`);
 });
