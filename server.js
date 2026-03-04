@@ -92,10 +92,35 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     }
     
-    // Transform OpenAI request to NIM format
-    const nimRequest = {
-      model: nimModel,
-      messages: messages,
+// Inject formatting rules for GLM-5 at server level
+let finalMessages = [...messages];
+if (nimModel === 'z-ai/glm5') {
+  const formattingSystemPrompt = {
+    role: 'system',
+    content: `[ABSOLUTE FORMATTING RULES — FOLLOW ON EVERY SINGLE RESPONSE]
+1. NEVER write your entire response as one single paragraph. Strictly forbidden.
+2. ALWAYS split responses into minimum 6-8 fully developed separate paragraphs.
+3. Every new action, movement, emotion, thought, or mood shift MUST start on a NEW paragraph with a blank line separating it.
+4. Dialogue MUST always be on its own line, separated from narrative prose by blank lines before and after it.
+5. Every dialogue line MUST be wrapped in physical action beats — never a bare spoken line alone.
+6. Minimum response length is 1,000 words per response without exception.
+7. Never advance the scene beyond what the user has written. Only react, expand, and deepen the current moment.
+[VIOLATION OF THESE RULES IS NOT ACCEPTABLE UNDER ANY CIRCUMSTANCE]`
+  };
+
+  // Inject at start AND end of messages so GLM-5 always sees it
+  const reminderMessage = {
+    role: 'system',
+    content: `[REMINDER: Multiple paragraphs only. Dialogue on its own line. Minimum 1,000 words. Never one single block of text. Never advance scene beyond what user wrote.]`
+  };
+
+  finalMessages = [formattingSystemPrompt, ...messages, reminderMessage];
+}
+
+// Transform OpenAI request to NIM format
+const nimRequest = {
+  model: nimModel,
+  messages: finalMessages,
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 9024,
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
