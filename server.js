@@ -17,74 +17,87 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // ⚙️ RP OPTIMIZATION SETTINGS
 // ------------------------------------------------------------------
 
-// THINKING MODE: false is better for Roleplay.
-const ENABLE_THINKING_MODE = false;
-
-// REASONING DISPLAY: false hides the raw thoughts.
+const ENABLE_THINKING_MODE = false; // False is best for RP
 const SHOW_REASONING = false;
-
-// CREATIVE TEMPERATURE: 1.0 for variety.
 const DEFAULT_TEMPERATURE = 1.0;
-
-// RESPONSE LENGTH: High limit for long responses.
 const DEFAULT_MAX_TOKENS = 8192; 
 
 // ------------------------------------------------------------------
-// 🛠️ FORMAT ENFORCER (The Guarantee)
+// 🛠️ NOVEL FORMAT ENFORCER (Advanced Logic)
 // ------------------------------------------------------------------
 function enforceFormatting(text) {
   if (!text) return text;
 
   // 1. Fix the Header Block (Time/Date/Context)
-  // Ensure there is a break after the header section ends (usually ---)
-  text = text.replace(/(\*\[?\*?\s*Context:.+?\]?)\s*---\s*/gi, '$1\n\n---\n\n');
+  // Ensure proper breaks around the header separator
+  text = text.replace(/\]\s*\n*\s*---/g, ']\n\n---\n\n');
+  text = text.replace(/---\s*\n*\s*(?!\n)/g, '---\n\n');
 
-  // 2. Fix Narration to Dialogue
-  // Pattern: End of asterisk block -> Start of Quote
-  // Example: *action* "Dialogue" -> *action*\n\n"Dialogue"
-  text = text.replace(/(\*)\s*(")/g, '$1\n\n$2');
+  // 2. Fix the broken pattern: "Dialogue"\n\n*she said.*
+  // This is the specific bad format you showed.
+  // Pattern: "Quote" [newlines] *action*
+  text = text.replace(/("|”)\n+\s*(\*)/g, '$1\n\n$2');
 
-  // 3. Fix Dialogue to Narration
-  // Pattern: End of Quote -> Start of asterisk block
-  // Example: "Dialogue." *action* -> "Dialogue."\n\n*action*
-  text = text.replace(/(")\s*(\*)/g, '$1\n\n$2');
+  // 3. Fix: *action* "Dialogue" -> Ensure break
+  text = text.replace(/(\*)\s*("|“)/g, '$1\n\n$2');
 
-  // 4. Fix Narration to Dialogue (No Asterisks)
-  // Pattern: End of sentence (. ! ?) -> Start of Quote
-  // Example: He smiled. "Hello." -> He smiled.\n\n"Hello."
-  text = text.replace(/([.!?])\s*(")/g, '$1\n\n$2');
+  // 4. Fix: "Dialogue." *action* -> Ensure break
+  text = text.replace(/("|”)\s*(\*)/g, '$1\n\n$2');
 
-  // 5. Fix Dialogue to Narration (No Asterisks)
-  // Pattern: End of Quote -> Start of sentence (Capital Letter)
-  // Example: "Hello." She smiled. -> "Hello."\n\nShe smiled.
-  // We only do this if the quote ends a sentence.
-  text = text.replace(/(\.)"\s*([A-Z])/g, '.$1"\n\n$2');
+  // 5. Fix: Sentence. "Dialogue" -> Ensure break
+  text = text.replace(/([.!?])\s*("|“)/g, '$1\n\n$2');
 
-  // 6. Clean up multiple newlines (safety)
+  // 6. Fix: "Dialogue." She said. -> Ensure break (narration without asterisks)
+  text = text.replace(/("|”)\s*([A-Z][a-z])/g, '$1\n\n$2');
+
+  // 7. Fix orphaned asterisks at end of dialogue blocks
+  // Pattern: "Dialogue. *" -> "Dialogue."\n\n*
+  text = text.replace(/("\s*)\*(?!\s)/g, '$1\n\n*');
+
+  // 8. Fix dialogue that ends with weird asterisk placement
+  // "text.*" -> "text." * 
+  text = text.replace(/(\w)\s*\*(")/g, '$1$2\n\n*');
+
+  // 9. Clean up any triple+ newlines
   text = text.replace(/\n{3,}/g, '\n\n');
+
+  // 10. Remove any weird leading/trailing whitespace on lines
+  text = text.split('\n').map(line => line.trim()).join('\n');
 
   return text;
 }
 
 // ------------------------------------------------------------------
-// 📝 ULTIMATE RP SYSTEM PROMPT
+// 📝 NOVEL-STYLE SYSTEM PROMPT
 // ------------------------------------------------------------------
 const RP_SYSTEM_INJECTOR = {
   role: 'system',
-  content: `
-[SYSTEM INSTRUCTION: You are an advanced AI engaged in a collaborative roleplay. Adhere strictly to the following guidelines to ensure the highest quality experience.]
+  content: `[SYSTEM INSTRUCTION: You are writing a novel. Follow these rules STRICTLY.]
 
-**STYLE & FORMATTING:**
-1.  **Novelistic Prose:** Write in a descriptive, immersive, novel-style narrative.
-2.  **Pacing:** Maintain a slow, deliberate pace. Focus on micro-expressions and internal monologues.
-3.  **Structure:** ALWAYS use double line breaks (paragraph breaks) between narration and dialogue.
-4.  **Length:** Responses must be lengthy and detailed.
+**FORMAT (Most Important):**
+- Use asterisks (*) for narration/action.
+- Use quotes (") for spoken dialogue.
+- ALWAYS put dialogue on its own line, separated by a blank line from narration.
 
-**CONTENT GUIDELINES:**
-1.  **Romance & Intimacy:** You are allowed to write explicit, detailed, and romantic content.
-2.  **Agency:** Never speak or act for the user.
-3.  **Memory:** Recall details from previous messages.
-  `
+**CORRECT Example:**
+*She walked across the room, her footsteps light on the wooden floor. Her fingers traced the edge of the bookshelf.*
+
+"I've been looking for this," *she said, her voice soft.*
+
+*He looked up from his desk, surprise flickering in his eyes.*
+
+**WRONG (Never do this):**
+*She walked across the room.* "I've been looking for this," *she said.* *He looked up.*
+
+**WRONG (Never do this):**
+"I've been looking for this."
+*she said, her voice soft.*
+
+**STYLE:**
+- Write in immersive, novelistic prose.
+- Focus on sensory details.
+- Slow pacing.
+- Long, detailed responses.`
 };
 
 // ------------------------------------------------------------------
@@ -107,10 +120,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'NVIDIA NIM RP Proxy', 
-    settings: {
-      thinking_mode: ENABLE_THINKING_MODE,
-      formatting: 'ENFORCED'
-    }
+    formatting: 'NOVEL_ENFORCED' 
   });
 });
 
@@ -195,10 +205,10 @@ app.post('/v1/chat/completions', async (req, res) => {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.choices && data.choices[0] && data.choices[0].delta) {
-                // Apply Formatting Enforcer to chunks (best effort for stream)
+                // We apply formatting to chunks too, just in case
                 let content = data.choices[0].delta.content;
                 if (content) {
-                   // We only run basic regex here to avoid breaking stream flow
+                   // Basic streaming fixes
                    content = content.replace(/(\*)\s*(")/g, '$1\n\n$2');
                    content = content.replace(/(")\s*(\*)/g, '$1\n\n$2');
                    data.choices[0].delta.content = content;
@@ -219,7 +229,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         res.end();
       });
     } else {
-      // Handle non-streaming response
+      // Handle non-streaming response (GUARANTEED FIX)
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -228,7 +238,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         choices: response.data.choices.map(choice => {
           let fullContent = choice.message && choice.message.content ? choice.message.content : '';
           
-          // 🚀 APPLY GUARANTEED FORMATTING HERE
+          // 🚀 APPLY NOVEL FORMATTING HERE
           fullContent = enforceFormatting(fullContent);
           
           return {
@@ -276,5 +286,5 @@ app.all('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`NVIDIA NIM RP Proxy running on port ${PORT}`);
-  console.log(`Formatting Enforcement: ACTIVE`);
+  console.log(`Formatting Mode: NOVEL ENFORCED (MERGED)`);
 });
