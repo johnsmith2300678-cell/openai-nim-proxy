@@ -1,3 +1,4 @@
+// server.js - OpenAI to NVIDIA NIM API Proxy
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -13,34 +14,13 @@ app.use(express.json());
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// SETTINGS ---------------------------------------------------------
-// Set to false for Roleplay. True is for coding/math/logic.
-const ENABLE_THINKING_MODE = false; 
+// 🔥 REASONING DISPLAY TOGGLE - Shows/hides reasoning in output
+const SHOW_REASONING = true; // Set to true to show reasoning with  thoughts
 
-// Set to false for Roleplay. You don't usually need to see the raw thoughts.
-const SHOW_REASONING = false; 
+// 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
+const ENABLE_THINKING_MODE = true; // Set to true to enable chat_template_kwargs thinking parameter
 
-// System Prompt Injector (Hidden instruction to force formatting)
-const FORMAT_INJECTOR = {
-  role: 'system',
-  content: `[INST] <<RP_FORMATTING_RULES>>
-- Write in a novel-style narrative.
-- ALWAYS use double line breaks (paragraph breaks) between narration and dialogue.
-- DO NOT cram dialogue and narration into one block.
-- Example Format:
-  *Narration describing the scene and feelings.*
-  
-  "Dialogue line," *she said.*
-  
-  *More narration describing actions.*
-  
-  "Next dialogue line."
-- Keep the response lengthy, descriptive, and paced slowly.
-[/INST]`
-};
-// ------------------------------------------------------------------
-
-// Model mapping 
+// Model mapping (adjust based on available NIM models)
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
@@ -49,7 +29,7 @@ const MODEL_MAPPING = {
   'claude-3-opus': 'openai/gpt-oss-120b',
   'claude-3-sonnet': 'openai/gpt-oss-20b',
   'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking',
-  'glm-5': 'z-ai/glm5'
+  'glm-5': 'z-ai/glm5' // <--- ADDED GLM-5 HERE
 };
 
 // Health check endpoint
@@ -62,7 +42,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// List models endpoint
+// List models endpoint (OpenAI compatible)
 app.get('/v1/models', (req, res) => {
   const models = Object.keys(MODEL_MAPPING).map(model => ({
     id: model,
@@ -77,14 +57,13 @@ app.get('/v1/models', (req, res) => {
   });
 });
 
-// Chat completions endpoint
+// Chat completions endpoint (main proxy)
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
     
-    // Smart model selection
+    // Smart model selection with fallback
     let nimModel = MODEL_MAPPING[model];
-    
     if (!nimModel) {
       try {
         await axios.post(`${NIM_API_BASE}/chat/completions`, {
@@ -92,16 +71,14 @@ app.post('/v1/chat/completions', async (req, res) => {
           messages: [{ role: 'user', content: 'test' }],
           max_tokens: 1
         }, {
-          headers: { 'Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
           validateStatus: (status) => status < 500
-        }).then(apiRes => {
-          if (apiRes.status >= 200 && apiRes.status < 300) {
+        }).then(res => {
+          if (res.status >= 200 && res.status < 300) {
             nimModel = model;
           }
         });
-      } catch (e) {
-        // Ignore errors during verification
-      }
+      } catch (e) {}
       
       if (!nimModel) {
         const modelLower = model.toLowerCase();
@@ -110,32 +87,21 @@ app.post('/v1/chat/completions', async (req, res) => {
         } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
           nimModel = 'meta/llama-3.1-70b-instruct';
         } else {
+          // <--- FIXED: Use the exact model name requested instead of falling back to 8b
           nimModel = model; 
         }
       }
     }
-
-    // --- FORMATTING INJECTION LOGIC ---
-    // Create a copy of messages to avoid modifying the original request body
-    let processedMessages = [...messages];
     
-    // Inject the formatting instructions at the start (or end of system prompt if exists)
-    // We will prepend it to ensure the model sees it.
-    processedMessages.unshift(FORMAT_INJECTOR);
-    
-    // Build the request payload
+    // Transform OpenAI request to NIM format
     const nimRequest = {
       model: nimModel,
-      messages: processedMessages, // Use the processed messages
-      temperature: temperature || 0.7, // Slightly higher temp for creativity
+      messages: messages,
+      temperature: temperature || 0.6,
       max_tokens: max_tokens || 9024,
+      extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
       stream: stream || false
     };
-
-    // Add thinking parameters if enabled (Disabled for RP by default)
-    if (ENABLE_THINKING_MODE) {
-      nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
-    }
     
     // Make request to NVIDIA NIM API
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
@@ -147,7 +113,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     });
     
     if (stream) {
-      // Handle streaming response
+      // Handle streaming response with reasoning
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -169,7 +135,7 @@ app.post('/v1/chat/completions', async (req, res) => {
             
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.choices && data.choices[0] && data.choices[0].delta) {
+              if (data.choices?.[0]?.delta) {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
                 
@@ -177,14 +143,14 @@ app.post('/v1/chat/completions', async (req, res) => {
                   let combinedContent = '';
                   
                   if (reasoning && !reasoningStarted) {
-                    combinedContent = '🤔 ' + reasoning;
+                    combinedContent = ' \n' + reasoning;
                     reasoningStarted = true;
                   } else if (reasoning) {
                     combinedContent = reasoning;
                   }
                   
                   if (content && reasoningStarted) {
-                    combinedContent += '\n\n' + content;
+                    combinedContent += ' \n\n' + content;
                     reasoningStarted = false;
                   } else if (content) {
                     combinedContent += content;
@@ -217,17 +183,17 @@ app.post('/v1/chat/completions', async (req, res) => {
         res.end();
       });
     } else {
-      // Handle non-streaming response
+      // Transform NIM response to OpenAI format with reasoning
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: model,
         choices: response.data.choices.map(choice => {
-          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
+          let fullContent = choice.message?.content || '';
           
-          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+          if (SHOW_REASONING && choice.message?.reasoning_content) {
+            fullContent = ' \n' + choice.message.reasoning_content + ' \n\n' + fullContent;
           }
           
           return {
@@ -252,17 +218,17 @@ app.post('/v1/chat/completions', async (req, res) => {
   } catch (error) {
     console.error('Proxy error:', error.message);
     
-    res.status(error.response ? error.response.status : 500).json({
+    res.status(error.response?.status || 500).json({
       error: {
         message: error.message || 'Internal server error',
         type: 'invalid_request_error',
-        code: error.response ? error.response.status : 500
+        code: error.response?.status || 500
       }
     });
   }
 });
 
-// Catch-all
+// Catch-all for unsupported endpoints
 app.all('*', (req, res) => {
   res.status(404).json({
     error: {
