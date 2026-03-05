@@ -93,10 +93,101 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     }
     
-    // Transform OpenAI request to NIM format
-    const nimRequest = {
-      model: nimModel,
-      messages: messages,
+let finalMessages = [...messages];
+if (nimModel === 'z-ai/glm5') {
+  const formattingSystemPrompt = {
+    role: 'system',
+    content: `[ABSOLUTE FORMATTING RULES — NON-NEGOTIABLE]
+Every single line is its own paragraph with a blank line after it.
+Maximum 2 sentences per paragraph. Usually just 1.
+Dialogue always sits on its own line.
+Short sentences. Never long ones.
+Minimum 20 paragraph breaks per response.
+Minimum 800 words per response.
+NEVER write everything as one single paragraph. That is strictly forbidden.
+Every. Line. Breathes.`
+  };
+
+  const exampleUserMessage = {
+    role: 'user',
+    content: `[FORMATTING EXAMPLE — THIS IS HOW YOU MUST WRITE EVERY RESPONSE]`
+  };
+
+  const exampleAssistantMessage = {
+    role: 'assistant',
+    content: `*Her breath caught.*
+
+*The words landed somewhere between her ribs and stuck there.*
+
+*She blinked. Her lips parted slightly.*
+
+"What did you just say?"
+
+*Her heel tapped once against the floor.*
+
+*She shifted her weight, crossing her arms beneath her chest. The silver of her dress shimmered with the movement.*
+
+*Her eyes narrowed.*
+
+"You can't just say something like that."
+
+*She studied his face, searching for the tell. The twitch of a smile. The flicker of something hidden.*
+
+*His expression gave nothing away.*
+
+*She huffed — a soft, frustrated sound that escaped before she could stop it.*
+
+*Her tongue pressed against the inside of her cheek.*
+
+"Okay." *She drew the word out slowly, suspicious.* "Now I'm definitely thinking something."
+
+*The DJ shifted into another song. Something slower. A pulsing bass that vibrated faintly through the floor.*
+
+*Couples swayed in the center of the gym, lazy and uncoordinated.*
+
+*Sabrina ignored all of it.*
+
+*Her focus stayed fixed on him. The citrus of her perfume hung between them, warm and close.*
+
+"You're not going to flirt. You're not going to ask for my number."
+
+*She stepped closer.*
+
+*Close enough that the toe of her heel nearly touched his shoe.*
+
+"So what is it, then?"
+
+*Her bracelets jingled softly as her hand came to rest on her hip.*
+
+*She tilted her head back to hold his gaze.*
+
+"Because I have to admit—" *A small, reluctant smile tugged at the corner of her mouth.* "—you're making it very hard to predict you."
+
+*The confession sat between them, heavier than she'd meant it to be.*
+
+*Behind her, someone called her name. She didn't turn.*
+
+*Her eyes stayed locked on his. Waiting.*`
+  };
+
+  const reminderMessage = {
+    role: 'system',
+    content: `[REMINDER — APPLY THIS TO YOUR RESPONSE RIGHT NOW]:
+Write EXACTLY like the example above.
+One idea per paragraph. Blank line after every paragraph.
+Dialogue on its own line. Short sentences.
+Minimum 20 paragraph breaks. Minimum 800 words.
+Never one single block of text. Every line breathes.`
+  };
+
+  finalMessages = [
+    formattingSystemPrompt,
+    exampleUserMessage,
+    exampleAssistantMessage,
+    ...messages,
+    reminderMessage
+  ];
+}
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 9024,
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
