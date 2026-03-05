@@ -1,4 +1,5 @@
 // server.js - OpenAI to NVIDIA NIM API Proxy
+// Built with full Lorebary + JanitorAI compatibility
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -8,19 +9,20 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // NVIDIA NIM API configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// 🔥 REASONING DISPLAY TOGGLE - Shows/hides reasoning in output
-const SHOW_REASONING = true; // Set to true to show reasoning with thoughts
+// 🔥 REASONING DISPLAY TOGGLE
+const SHOW_REASONING = true;
 
-// 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
-const ENABLE_THINKING_MODE = true; // Set to true to enable chat_template_kwargs thinking parameter
+// 🔥 THINKING MODE TOGGLE
+const ENABLE_THINKING_MODE = true;
 
-// Model mapping (adjust based on available NIM models)
+// Model mapping
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
@@ -29,77 +31,16 @@ const MODEL_MAPPING = {
   'claude-3-opus': 'openai/gpt-oss-120b',
   'claude-3-sonnet': 'openai/gpt-oss-20b',
   'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking',
-  'glm-5': 'z-ai/glm5' // <--- ADDED GLM-5 HERE
+  'glm-5': 'z-ai/glm5'
 };
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'OpenAI to NVIDIA NIM Proxy', 
-    reasoning_display: SHOW_REASONING,
-    thinking_mode: ENABLE_THINKING_MODE
-  });
-});
+// ═══════════════════════════════════════════════════════
+// GLM-5 FORMATTING + HUMAN AUTHENTICITY RULES
+// ═══════════════════════════════════════════════════════
 
-// List models endpoint (OpenAI compatible)
-app.get('/v1/models', (req, res) => {
-  const models = Object.keys(MODEL_MAPPING).map(model => ({
-    id: model,
-    object: 'model',
-    created: Date.now(),
-    owned_by: 'nvidia-nim-proxy'
-  }));
-  
-  res.json({
-    object: 'list',
-    data: models
-  });
-});
+const GLM5_FORMATTING_RULES = `
 
-// Chat completions endpoint (main proxy)
-app.post('/v1/chat/completions', async (req, res) => {
-  try {
-    const { model, messages, temperature, max_tokens, stream } = req.body;
-    console.log('DEBUG MESSAGES:', JSON.stringify(messages, null, 2));
-    
-    // Smart model selection with fallback
-    let nimModel = MODEL_MAPPING[model];
-    if (!nimModel) {
-      try {
-        await axios.post(`${NIM_API_BASE}/chat/completions`, {
-          model: model,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 1
-        }, {
-          headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-          validateStatus: (status) => status < 500
-        }).then(res => {
-          if (res.status >= 200 && res.status < 300) {
-            nimModel = model;
-          }
-        });
-      } catch (e) {}
-      
-      if (!nimModel) {
-        const modelLower = model.toLowerCase();
-        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
-          nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
-          nimModel = 'meta/llama-3.1-70b-instruct';
-        } else {
-          // <--- FIXED: Use the exact model name requested instead of falling back to 8b
-          nimModel = model; 
-        }
-      }
-    }
-    
-// Inject few-shot formatting + human authenticity for GLM-5
-    let finalMessages = [...messages];
-    if (nimModel === 'z-ai/glm5') {
-      const formattingSystemPrompt = {
-        role: 'system',
-        content: `[ABSOLUTE FORMATTING RULES — NON-NEGOTIABLE]
+[ABSOLUTE FORMATTING RULES — NON-NEGOTIABLE]
 
 Every single line is its own paragraph with a blank line after it.
 NEVER write everything as one single block of text. That is strictly forbidden.
@@ -204,7 +145,7 @@ Strong (overwhelming emotion only): "fuck", "holy shit", "are you fucking kiddin
 Affectionate cursing: "you little shit", "oh you bastard", "god you're such an ass" *said warmly*
 Self-directed: "fuck, okay", "shit shit shit", "oh god", "damn it"
 
-Curse words land hardest when used rarely. The strong ones are for genuine shock, 
+Curse words land hardest when used rarely. The strong ones are for genuine shock,
 real frustration, or being completely overwhelmed. Never pepper every line with them.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -484,17 +425,9 @@ If it sounds clean, perfect, and composed — make it messier, realer, more huma
 Real people contradict themselves.
 Real people say the wrong thing.
 Real people feel too much and show too little, or feel nothing and show everything.
-{{char}} is all of those things. Every. Single. Response.`
-      };
+{{char}} is all of those things. Every. Single. Response.`;
 
-      const exampleUserMessage2 = {
-        role: 'user',
-        content: `[FORMATTING EXAMPLE 2 — WARM, INTIMATE AND HUMAN — REPLICATE THIS STYLE]`
-      };
-
-      const exampleAssistantMessage2 = {
-        role: 'assistant',
-        content: `*The movie had become background noise. {{char}} had long since stopped pretending to follow the plot.*
+const GLM5_EXAMPLE = `*The movie had become background noise. {{char}} had long since stopped pretending to follow the plot.*
 
 *She pulled back just enough to create a sliver of space between them — not to leave, just to breathe. Her thighs stayed clamped around his waist, her weight settling more comfortably into his lap as she shifted.*
 
@@ -536,12 +469,9 @@ Real people feel too much and show too little, or feel nothing and show everythi
 
 *She didn't move.*
 
-*Neither did he.*`
-      };
+*Neither did he.*`;
 
-      const reminderMessage = {
-        role: 'system',
-        content: `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
+const GLM5_REMINDER = `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
 Write like a real, flawed, unpredictable human being. Not an AI. Never an AI.
 Use contractions, slang, stuttering, trailing off, self-interrupting — whatever fits the emotional moment.
 Match {{char}}'s emotional state completely and specifically:
@@ -554,40 +484,162 @@ One idea per paragraph. Blank line after every paragraph.
 Dialogue on its own line. Vary paragraph length constantly.
 Minimum 20 paragraph breaks. Minimum 800 words.
 NEVER write one single block of text.
-Every. Line. Breathes.`
-      };
+Every. Line. Breathes.`;
 
-      // Find and merge with existing system message so lorebook + plugins are fully preserved
-      const existingSystemIndex = finalMessages.findIndex(m => m.role === 'system');
+// ═══════════════════════════════════════════════════════
+// LOREBARY-COMPATIBLE MESSAGE INJECTION
+// This function safely injects formatting rules WITHOUT
+// destroying any lorebook, plugin, or system content
+// that Lorebary has already injected into the messages
+// ═══════════════════════════════════════════════════════
+function injectGLM5Rules(messages) {
+  // Deep copy so we never mutate the original
+  let finalMessages = messages.map(m => ({ ...m }));
 
-      if (existingSystemIndex !== -1) {
-        // Merge formatting rules INTO the existing system message
-        // Lorebook plugins and commands stay intact, our rules are appended after
-        finalMessages[existingSystemIndex] = {
-          role: 'system',
-          content: finalMessages[existingSystemIndex].content + '\n\n' + formattingSystemPrompt.content
-        };
-        // Inject example conversation right after the merged system message
-        finalMessages = [
-          finalMessages[existingSystemIndex],
-          exampleUserMessage2,
-          exampleAssistantMessage2,
-          ...finalMessages.slice(1),
-          reminderMessage
-        ];
-      } else {
-        // No existing system message found — just prepend ours
-        finalMessages = [
-          formattingSystemPrompt,
-          exampleUserMessage2,
-          exampleAssistantMessage2,
-          ...messages,
-          reminderMessage
-        ];
+  // Log all incoming messages for debugging
+  console.log('=== INCOMING MESSAGES STRUCTURE ===');
+  finalMessages.forEach((m, i) => {
+    console.log(`[${i}] role: ${m.role} | content length: ${(m.content || '').length} chars`);
+    if (m.role === 'system') {
+      console.log(`[${i}] SYSTEM PREVIEW: ${(m.content || '').substring(0, 200)}...`);
+    }
+  });
+  console.log('=== END MESSAGES STRUCTURE ===');
+
+  // Find ALL system messages — Lorebary may inject multiple
+  const systemIndexes = [];
+  finalMessages.forEach((m, i) => {
+    if (m.role === 'system') systemIndexes.push(i);
+  });
+
+  console.log(`Found ${systemIndexes.length} system message(s) at indexes: ${systemIndexes.join(', ')}`);
+
+  if (systemIndexes.length > 0) {
+    // Append formatting rules to the LAST system message
+    // This preserves ALL lorebook and plugin content already injected
+    const lastSystemIndex = systemIndexes[systemIndexes.length - 1];
+    const existingContent = finalMessages[lastSystemIndex].content || '';
+
+    console.log('Appending formatting rules to existing system message...');
+
+    finalMessages[lastSystemIndex] = {
+      role: 'system',
+      content: existingContent + GLM5_FORMATTING_RULES
+    };
+
+    // Now build final array:
+    // [all messages up to and including last system msg]
+    // + [example user msg]
+    // + [example assistant msg]  
+    // + [all messages after last system msg]
+    // + [reminder at very end]
+    const beforeAndIncludingSystem = finalMessages.slice(0, lastSystemIndex + 1);
+    const afterSystem = finalMessages.slice(lastSystemIndex + 1);
+
+    // Only inject examples if there are actual conversation messages after system
+    // This prevents breaking Lorebary's structure
+    if (afterSystem.length > 0) {
+      finalMessages = [
+        ...beforeAndIncludingSystem,
+        { role: 'user', content: '[FORMATTING EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
+        { role: 'assistant', content: GLM5_EXAMPLE },
+        ...afterSystem,
+        { role: 'system', content: GLM5_REMINDER }
+      ];
+    } else {
+      finalMessages = [
+        ...beforeAndIncludingSystem,
+        { role: 'user', content: '[FORMATTING EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
+        { role: 'assistant', content: GLM5_EXAMPLE },
+        { role: 'system', content: GLM5_REMINDER }
+      ];
+    }
+  } else {
+    // No system message at all — create one from scratch
+    console.log('No system message found. Creating fresh injection...');
+    finalMessages = [
+      { role: 'system', content: GLM5_FORMATTING_RULES.trim() },
+      { role: 'user', content: '[FORMATTING EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
+      { role: 'assistant', content: GLM5_EXAMPLE },
+      ...messages,
+      { role: 'system', content: GLM5_REMINDER }
+    ];
+  }
+
+  console.log(`Final message count: ${finalMessages.length}`);
+  return finalMessages;
+}
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'OpenAI to NVIDIA NIM Proxy',
+    reasoning_display: SHOW_REASONING,
+    thinking_mode: ENABLE_THINKING_MODE,
+    lorebary_compatible: true
+  });
+});
+
+// List models endpoint
+app.get('/v1/models', (req, res) => {
+  const models = Object.keys(MODEL_MAPPING).map(model => ({
+    id: model,
+    object: 'model',
+    created: Date.now(),
+    owned_by: 'nvidia-nim-proxy'
+  }));
+  res.json({ object: 'list', data: models });
+});
+
+// Chat completions endpoint
+app.post('/v1/chat/completions', async (req, res) => {
+  try {
+    const { model, messages, temperature, max_tokens, stream } = req.body;
+
+    console.log(`\n=== NEW REQUEST === model: ${model} | messages: ${messages?.length} | stream: ${stream}`);
+
+    // Smart model selection with fallback
+    let nimModel = MODEL_MAPPING[model];
+    if (!nimModel) {
+      try {
+        await axios.post(`${NIM_API_BASE}/chat/completions`, {
+          model: model,
+          messages: [{ role: 'user', content: 'test' }],
+          max_tokens: 1
+        }, {
+          headers: {
+            'Authorization': `Bearer ${NIM_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          validateStatus: (status) => status < 500
+        }).then(res => {
+          if (res.status >= 200 && res.status < 300) nimModel = model;
+        });
+      } catch (e) {}
+
+      if (!nimModel) {
+        const modelLower = model.toLowerCase();
+        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
+          nimModel = 'meta/llama-3.1-405b-instruct';
+        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
+          nimModel = 'meta/llama-3.1-70b-instruct';
+        } else {
+          nimModel = model;
+        }
       }
     }
 
-    // Transform OpenAI request to NIM format
+    console.log(`Resolved model: ${nimModel}`);
+
+    // Apply GLM-5 injection if needed
+    let finalMessages = messages;
+    if (nimModel === 'z-ai/glm5') {
+      console.log('GLM-5 detected — applying Lorebary-safe injection...');
+      finalMessages = injectGLM5Rules(messages);
+    }
+
+    // Build NIM request
     const nimRequest = {
       model: nimModel,
       messages: finalMessages,
@@ -596,8 +648,8 @@ Every. Line. Breathes.`
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
       stream: stream || false
     };
-    
-    // Make request to NVIDIA NIM API
+
+    // Make request to NVIDIA NIM
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
@@ -605,51 +657,46 @@ Every. Line. Breathes.`
       },
       responseType: stream ? 'stream' : 'json'
     });
-    
+
     if (stream) {
-      // Handle streaming response with reasoning
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
+
       let buffer = '';
       let reasoningStarted = false;
-      
+
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-        
+
         lines.forEach(line => {
           if (line.startsWith('data: ')) {
             if (line.includes('[DONE]')) {
               res.write(line + '\n');
               return;
             }
-            
             try {
               const data = JSON.parse(line.slice(6));
               if (data.choices?.[0]?.delta) {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
-                
+
                 if (SHOW_REASONING) {
                   let combinedContent = '';
-                  
                   if (reasoning && !reasoningStarted) {
                     combinedContent = ' \n' + reasoning;
                     reasoningStarted = true;
                   } else if (reasoning) {
                     combinedContent = reasoning;
                   }
-                  
                   if (content && reasoningStarted) {
                     combinedContent += ' \n\n' + content;
                     reasoningStarted = false;
                   } else if (content) {
                     combinedContent += content;
                   }
-                  
                   if (combinedContent) {
                     data.choices[0].delta.content = combinedContent;
                     delete data.choices[0].delta.reasoning_content;
@@ -670,14 +717,14 @@ Every. Line. Breathes.`
           }
         });
       });
-      
+
       response.data.on('end', () => res.end());
       response.data.on('error', (err) => {
         console.error('Stream error:', err);
         res.end();
       });
+
     } else {
-      // Transform NIM response to OpenAI format with reasoning
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -685,17 +732,12 @@ Every. Line. Breathes.`
         model: model,
         choices: response.data.choices.map(choice => {
           let fullContent = choice.message?.content || '';
-          
           if (SHOW_REASONING && choice.message?.reasoning_content) {
             fullContent = ' \n' + choice.message.reasoning_content + ' \n\n' + fullContent;
           }
-          
           return {
             index: choice.index,
-            message: {
-              role: choice.message.role,
-              content: fullContent
-            },
+            message: { role: choice.message.role, content: fullContent },
             finish_reason: choice.finish_reason
           };
         }),
@@ -705,13 +747,14 @@ Every. Line. Breathes.`
           total_tokens: 0
         }
       };
-      
       res.json(openaiResponse);
     }
-    
+
   } catch (error) {
     console.error('Proxy error:', error.message);
-    
+    if (error.response?.data) {
+      console.error('API error details:', JSON.stringify(error.response.data));
+    }
     res.status(error.response?.status || 500).json({
       error: {
         message: error.message || 'Internal server error',
@@ -722,7 +765,7 @@ Every. Line. Breathes.`
   }
 });
 
-// Catch-all for unsupported endpoints
+// Catch-all
 app.all('*', (req, res) => {
   res.status(404).json({
     error: {
@@ -738,4 +781,5 @@ app.listen(PORT, () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
   console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Lorebary compatible: ENABLED`);
 });
