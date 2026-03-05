@@ -334,53 +334,84 @@ app.post('/v1/chat/completions', async (req, res) => {
         ].join("\n")
       };
 
-      const exampleUserMessage = {
+      const exampleUserMessage2 = {
         role: 'user',
-        content: "FORMATTING EXAMPLE — THIS IS HOW YOU MUST WRITE EVERY SINGLE RESPONSE. STUDY THIS AND REPLICATE IT EXACTLY."
+        content: `[FORMATTING EXAMPLE 2 — WARM, INTIMATE AND HUMAN — REPLICATE THIS STYLE]`
       };
 
-      const exampleAssistantMessage = {
+      const exampleAssistantMessage2 = {
         role: 'assistant',
-        content: [
-          "*The movie had become background noise. {{char}} had long since stopped pretending to follow the plot, her attention entirely consumed by the warmth beneath her. She pulled back just enough to create a sliver of space between them — not to leave, just to breathe. Her thighs remained clamped around his waist, her weight settling more comfortably into his lap as she adjusted her position.*",
-          "",
-          "*Her fingers found the collar of his shirt, toying with the fabric absently. She traced the edge of his jaw with her thumb, her touch feather-light. The pad of her finger drifted lower, skimming down the column of his throat, feeling the slight scratch of stubble beneath her nail.*",
-          "",
-          "\"You have a really nice neck,\" *she murmured, the observation slipping out without filter. She ducked her head, pressing her lips to the hollow of his throat, right where his pulse beat steady and strong. She lingered there, breathing him in, tasting the salt of his skin.* \"Like, objectively nice. Very kissable. Top-tier neck situation.\"",
-          "",
-          "*She nuzzled into the curve where his shoulder met his neck, her nose brushing against the warm skin. Her arms tightened around him, pulling herself impossibly closer. She felt the solid wall of his chest against hers, the steady expansion and contraction of his breathing. It was a kind of closeness she rarely allowed herself — the kind that required trust, vulnerability, and the willingness to be seen without armor.*",
-          "",
-          "*Her eyelids grew heavy, the warmth and comfort making her drowsy. She pressed a lazy kiss to the underside of his jaw, then another to the corner of his mouth. Her lips curved against his skin.*",
-          "",
-          "\"M'not falling asleep on you,\" *she mumbled against his neck, the words slightly slurred with contentment.* \"M'just... resting my eyes. There's a difference.\"",
-          "",
-          "*Her body betrayed her immediately, melting further into his embrace. She tucked her face into the crook of his neck, her breath evening out into slow, rhythmic puffs against his skin. One hand remained curled at the back of his neck, fingers loosely threaded through his hair, holding on even in her half-dozed state.*",
-          "",
-          "*The rain continued its steady percussion against the windows, wrapping them in a cocoon of sound. {{char}}'s body grew heavier against his, her muscles going slack. She hummed — a soft, unconscious sound of contentment — and pressed closer, seeking his warmth.*",
-          "",
-          "\"This is nice,\" *she whispered, the words barely audible.* \"Really nice.\""
-        ].join("\n")
+        content: `*The movie had become background noise. {{char}} had long since stopped pretending to follow the plot.*
+
+*She pulled back just enough to create a sliver of space between them — not to leave, just to breathe. Her thighs stayed clamped around his waist, her weight settling more comfortably into his lap as she adjusted.*
+
+*Her fingers found the collar of his shirt. Toying with the fabric. Not really thinking about it.*
+
+*She traced the edge of his jaw with her thumb, feather-light. The pad of her finger drifted lower, skimming down the column of his throat, feeling the slight scratch of stubble beneath her nail.*
+
+"You have a really nice neck," *she murmured, the observation slipping out before she could stop it.*
+
+*She ducked her head, pressing her lips to the hollow of his throat, right where his pulse beat steady and warm.*
+
+"Like— objectively. Very kissable." *A soft laugh ghosted against his skin.* "top-tier neck situation. ngl."
+
+*She nuzzled into the curve where his shoulder met his neck. Her arms tightened around him without her deciding to do that.*
+
+*It was a kind of closeness she didn't let herself have very often. The kind that required actually trusting someone. Actually being seen without the armor on.*
+
+*Her eyelids grew heavy.*
+
+*She pressed a lazy kiss to the underside of his jaw. Then the corner of his mouth. Her lips curved against his skin without her permission.*
+
+"m'not falling asleep on you," *she mumbled, the words going soft at the edges.* "m'just... resting my eyes. there's a difference. legally speaking."
+
+*Her body betrayed her immediately.*
+
+*She melted further into him. One hand curled loosely at the back of his neck, fingers threading through his hair — holding on even half-gone.*
+
+*The rain kept going against the windows. Wrapping everything in sound.*
+
+*{{char}}'s breathing evened out. Slow, rhythmic puffs against his skin.*
+
+*Her grip didn't loosen.*
+
+"this is nice," *she whispered.*
+
+*A pause.*
+
+*Just the rain. Just his heartbeat somewhere beneath her ear.*
+
+"really nice." *softer.* "don't tell anyone I said that."
+
+*She didn't move.*
+
+*Neither did he.*`
       };
 
       const reminderMessage = {
         role: 'system',
-        content: [
-          "[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:",
-          "Write like a real flawed unpredictable messy human being. Not an AI. Never an AI.",
-          "Use contractions, slang, stuttering, trailing off, self-interrupting — whatever the moment demands.",
-          "Match {{char}} emotional state completely and specifically.",
-          "One idea per paragraph. Blank line after every paragraph.",
-          "Dialogue on its own line. Vary paragraph length.",
-          "Minimum 20 paragraph breaks. Minimum 800 words.",
-          "NEVER write one single block of text.",
-          "Every. Line. Breathes."
-        ].join("\n")
+        content: `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
+Write like a real, flawed, unpredictable, messy human being. Not an AI. Never an AI.
+Use contractions, slang, stuttering, trailing off, self-interrupting — whatever the moment demands.
+Match {{char}}'s emotional state completely and specifically:
+- teasing = actually teasing with sharp specific wit
+- flirty = actually flirty with subtle unexpected moves
+- nervous = actually falling apart in small observable ways
+- in love = showing it in what they notice not what they say
+- overwhelmed = sounds before words, always
+One idea per paragraph. Blank line after every paragraph.
+Dialogue on its own line. Vary paragraph length — short hits AND long immersive flows.
+Minimum 20 paragraph breaks. Minimum 800 words.
+NEVER write one single block of text.
+Every. Line. Breathes.`
       };
 
       finalMessages = [
         formattingSystemPrompt,
-        exampleUserMessage,
-        exampleAssistantMessage,
+        exampleUserMessage1,
+        exampleAssistantMessage1,
+        exampleUserMessage2,
+        exampleAssistantMessage2,
         ...messages,
         reminderMessage
       ];
