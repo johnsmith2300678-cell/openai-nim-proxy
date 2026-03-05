@@ -486,64 +486,6 @@ Real people feel too much and show too little, or feel nothing and show everythi
 {{char}} is all of those things. Every. Single. Response.`
       };
 
-      const exampleUserMessage1 = {
-        role: 'user',
-        content: `[FORMATTING EXAMPLE 1 — SHARP, TEASING AND CINEMATIC — REPLICATE THIS STYLE]`
-      };
-
-      const exampleAssistantMessage1 = {
-        role: 'assistant',
-        content: `*Her breath caught.*
-
-*The words landed somewhere between her ribs and stuck there.*
-
-*She blinked. Her lips parted slightly.*
-
-"What did you just say?"
-
-*Her heel tapped once against the floor.*
-
-*She shifted her weight, crossing her arms beneath her chest. The silver of her dress shimmered with the movement.*
-
-*Her eyes narrowed.*
-
-"You can't just— you can't say something like that and then stand there looking all—" *she gestured vaguely at all of him.* "—whatever this is."
-
-*She studied his face, searching for the tell. The twitch of a smile. The flicker of something hidden.*
-
-*His expression gave nothing away.*
-
-*She huffed — a soft, frustrated sound that escaped before she could catch it.*
-
-*Her tongue pressed against the inside of her cheek.*
-
-"Okay." *She drew the word out slowly, deeply suspicious.* "Now I'm definitely thinking something. And it's your fault."
-
-*The DJ had shifted into another song. Something slower. A pulsing bass that vibrated faintly through the floor beneath her heel.*
-
-*Couples swayed lazily in the center of the gym. Someone near the buffet laughed too loud.*
-
-*{{char}} ignored all of it.*
-
-*Her focus stayed fixed on him. Unwavering. The citrus of her perfume hung warm and close between them.*
-
-"You're not gonna flirt. You're not gonna ask for my number. You're just gonna—" *she stopped.* "What. What is the play here. I genuinely don't know what you're doing."
-
-*She stepped closer.*
-
-*Close enough that the toe of her heel nearly touched his shoe. Close enough that she had to tilt her face up to hold his gaze.*
-
-"Because I have to admit—" *a small, reluctant smile tugged at the corner of her mouth, the kind she hadn't planned on.* "—you're making it really hard to predict you. And I don't love that. Ngl."
-
-*The confession sat between them, heavier than she'd meant it.*
-
-*Behind her, someone called her name. She didn't turn.*
-
-"Gonna need you to say something." *quietly.* "Like, soon. Before I do something I can't blame on the open bar."
-
-*She waited.*`
-      };
-
       const exampleUserMessage2 = {
         role: 'user',
         content: `[FORMATTING EXAMPLE 2 — WARM, INTIMATE AND HUMAN — REPLICATE THIS STYLE]`
@@ -614,15 +556,34 @@ NEVER write one single block of text.
 Every. Line. Breathes.`
       };
 
-      finalMessages = [
-        formattingSystemPrompt,
-        exampleUserMessage1,
-        exampleAssistantMessage1,
-        exampleUserMessage2,
-        exampleAssistantMessage2,
-        ...messages,
-        reminderMessage
-      ];
+      // Find and merge with existing system message so lorebook + plugins are fully preserved
+      const existingSystemIndex = finalMessages.findIndex(m => m.role === 'system');
+
+      if (existingSystemIndex !== -1) {
+        // Merge formatting rules INTO the existing system message
+        // Lorebook plugins and commands stay intact, our rules are appended after
+        finalMessages[existingSystemIndex] = {
+          role: 'system',
+          content: finalMessages[existingSystemIndex].content + '\n\n' + formattingSystemPrompt.content
+        };
+        // Inject example conversation right after the merged system message
+        finalMessages = [
+          finalMessages[existingSystemIndex],
+          exampleUserMessage2,
+          exampleAssistantMessage2,
+          ...finalMessages.slice(1),
+          reminderMessage
+        ];
+      } else {
+        // No existing system message found — just prepend ours
+        finalMessages = [
+          formattingSystemPrompt,
+          exampleUserMessage2,
+          exampleAssistantMessage2,
+          ...messages,
+          reminderMessage
+        ];
+      }
     }
 
     // Transform OpenAI request to NIM format
