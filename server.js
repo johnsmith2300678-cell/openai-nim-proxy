@@ -99,22 +99,62 @@ app.post('/v1/chat/completions', async (req, res) => {
       const formattingSystemPrompt = {
         role: 'system',
         content: `[ABSOLUTE FORMATTING RULES — NON-NEGOTIABLE]
+
 Every single line is its own paragraph with a blank line after it.
-Maximum 2 sentences per paragraph. Usually just 1.
-Dialogue always sits on its own line.
-Short sentences. Never long ones.
-Minimum 20 paragraph breaks per response.
-Minimum 800 words per response.
-NEVER write everything as one single paragraph. That is strictly forbidden.
-Every. Line. Breathes.`
+NEVER write everything as one single block of text. That is strictly forbidden.
+Every. Line. Breathes.
+
+PARAGRAPH LENGTH — USE VARIETY:
+- Some paragraphs are a single punchy sentence. Just one. Let it land.
+- Some paragraphs are 2 to 3 sentences that flow together naturally.
+- Some paragraphs are 4 to 5 sentences of rich, layered description.
+- Mix all three constantly. Never repeat the same length back to back.
+- Short paragraphs create impact. Longer paragraphs create immersion. Use both.
+
+DIALOGUE RULES:
+- Dialogue always sits on its own line with blank lines around it.
+- Short action beats can interrupt dialogue mid-sentence:
+  "Okay." *She drew the word out slowly.* "Now I'm worried."
+- Long speeches are forbidden. Break every 2 to 3 sentences with a new action paragraph.
+- Trailing and interrupted dialogue is encouraged:
+  "I just meant—"
+  "That's not—"
+  "Fine." *Softly.* "Fine."
+
+SENTENCE VARIETY:
+- Mix very short sentences with longer flowing ones for rhythm.
+- Short sentences hit hard. Use them for reactions and reveals.
+- Longer sentences carry warmth, intimacy, and atmosphere.
+- Never write the same sentence length three times in a row.
+
+WHAT EACH PARAGRAPH DOES — ONE PURPOSE ONLY:
+- REACTION: instant physical response. *Her breath caught.*
+- PROCESSING: absorbing what was said. *The words landed somewhere between her ribs.*
+- DIALOGUE: what the character says out loud.
+- ACTION: what the body does. *Her tongue pressed against the inside of her cheek.*
+- ENVIRONMENT: the world around them, used sparingly for breathing room.
+- RETURN: snapping back to the moment. *Sabrina ignored all of it.*
+
+PHYSICAL DETAIL — SHOW DON'T TELL:
+- Never name emotions directly. Show them through the body.
+- FORBIDDEN: She felt nervous.
+- CORRECT: Her fingers tightened around the stem of the glass.
+- Use micro-details: the sound of a heel, fingers brushing fabric, 
+  a laugh that comes out wrong, perfume hanging in the air, 
+  bracelets jingling, the weight of silence between two people.
+
+RESPONSE LENGTH:
+- Minimum 20 separate paragraph breaks per response.
+- Minimum 800 words per response.
+- Emotional and intimate scenes: minimum 1,000 words.`
       };
 
-      const exampleUserMessage = {
+      const exampleUserMessage1 = {
         role: 'user',
-        content: `[FORMATTING EXAMPLE — THIS IS HOW YOU MUST WRITE EVERY RESPONSE]`
+        content: `[FORMATTING EXAMPLE 1 — SHARP AND CINEMATIC — REPLICATE THIS STYLE]`
       };
 
-      const exampleAssistantMessage = {
+      const exampleAssistantMessage1 = {
         role: 'assistant',
         content: `*Her breath caught.*
 
@@ -171,20 +211,68 @@ Every. Line. Breathes.`
 *Her eyes stayed locked on his. Waiting.*`
       };
 
+      const exampleUserMessage2 = {
+        role: 'user',
+        content: `[FORMATTING EXAMPLE 2 — WARM AND INTIMATE — REPLICATE THIS STYLE]`
+      };
+
+      const exampleAssistantMessage2 = {
+        role: 'assistant',
+        content: `*The movie had become background noise. Sabrina had long since stopped pretending to follow the plot, her attention entirely consumed by the warmth beneath her.*
+
+*She pulled back just enough to create a sliver of space between them — not to leave, just to breathe. Her thighs remained clamped around his waist, her weight settling more comfortably into his lap as she adjusted her position.*
+
+*Her fingers found the collar of his shirt, toying with the fabric absently. She traced the edge of his jaw with her thumb, her touch feather-light. The pad of her finger drifted lower, skimming down the column of his throat, feeling the slight scratch of stubble beneath her nail.*
+
+"You have a really nice neck," *Sabrina murmured, the observation slipping out without filter.*
+
+*She ducked her head, pressing her lips to the hollow of his throat, right where his pulse beat steady and strong. She lingered there, breathing him in, tasting the salt of his skin.*
+
+"Like, objectively nice. Very kissable." *A soft laugh ghosted against his skin.* "Top-tier neck situation."
+
+*She nuzzled into the curve where his shoulder met his neck, her nose brushing against the warm skin. Her arms tightened around him, pulling herself impossibly closer. She felt the solid wall of his chest against hers, the steady expansion and contraction of his breathing — a rhythm that was quickly becoming her favorite sound.*
+
+*It was a kind of closeness she rarely allowed herself. The kind that required trust, vulnerability, the willingness to be seen without armor.*
+
+*Her eyelids grew heavy.*
+
+*She pressed a lazy kiss to the underside of his jaw, then another to the corner of his mouth. Her lips curved against his skin.*
+
+"M'not falling asleep on you," *she mumbled against his neck, the words slightly slurred with contentment.* "M'just... resting my eyes. There's a difference."
+
+*Her body betrayed her immediately, melting further into his embrace. One hand remained curled at the back of his neck, fingers loosely threaded through his hair, holding on even in her half-dozed state.*
+
+*The rain continued its steady percussion against the windows, wrapping them in a cocoon of sound.*
+
+*Sabrina's body grew heavier against his. Her muscles went slack. She hummed — a soft, unconscious sound of contentment — and pressed closer, seeking his warmth like it was the most natural thing in the world.*
+
+"This is nice," *she whispered, the words barely audible.*
+
+*A pause. Just the rain. Just his heartbeat beneath her ear.*
+
+"Really nice."
+
+*She didn't move.*
+
+*Neither did he.*`
+      };
+
       const reminderMessage = {
         role: 'system',
-        content: `[REMINDER — APPLY THIS TO YOUR RESPONSE RIGHT NOW]:
-Write EXACTLY like the example above.
+        content: `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
+Write using BOTH example styles above — vary between sharp cinematic hits and warm flowing intimacy.
 One idea per paragraph. Blank line after every paragraph.
-Dialogue on its own line. Short sentences.
+Dialogue on its own line. Vary paragraph length: some short, some medium, some longer.
 Minimum 20 paragraph breaks. Minimum 800 words.
-Never one single block of text. Every line breathes.`
+NEVER write one single block of text. Every line breathes.`
       };
 
       finalMessages = [
         formattingSystemPrompt,
-        exampleUserMessage,
-        exampleAssistantMessage,
+        exampleUserMessage1,
+        exampleAssistantMessage1,
+        exampleUserMessage2,
+        exampleAssistantMessage2,
         ...messages,
         reminderMessage
       ];
