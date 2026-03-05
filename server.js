@@ -61,6 +61,7 @@ app.get('/v1/models', (req, res) => {
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
+    console.log('DEBUG MESSAGES:', JSON.stringify(messages, null, 2));
     
     // Smart model selection with fallback
     let nimModel = MODEL_MAPPING[model];
