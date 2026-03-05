@@ -55,52 +55,13 @@ SHOW DON'T TELL:
 - RIGHT: Her fingers tightened around the glass.
 
 RESPONSE LENGTH:
-- Minimum 20 paragraph breaks per response.
-- Minimum 800 words. Intimate scenes minimum 1,000 words.
+- Minimum 25 paragraph breaks per response.
+- Minimum 1,200 words per response. No exceptions.
+- Intimate, emotional, or romantic scenes minimum 1,500 words.
+- Never cut a scene short. Slow down and expand every single moment.
+- If a moment can be shown in 2 sentences, use 5 instead.
 
 [WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
-
-const EXAMPLE_RESPONSE = `*The movie had become background noise. {{char}} had long since stopped pretending to follow the plot.*
-
-*She pulled back just enough to create a sliver of space between them — not to leave, just to breathe. Her thighs stayed clamped around his waist, her weight settling more comfortably into his lap as she shifted.*
-
-*Her fingers found the collar of his shirt. She toyed with the fabric without thinking about it. Her thumb traced the edge of his jaw, feather-light, then drifted lower — down the column of his throat, feeling the faint scratch of stubble beneath her nail.*
-
-"You have a really nice neck," *she murmured, the observation slipping out before she could stop it.*
-
-*She ducked her head, pressing her lips to the hollow of his throat, right where his pulse ran steady and warm. She lingered there. Breathing him in. Tasting salt.*
-
-"Like— objectively. Very kissable." *a soft laugh ghosted against his skin.* "Top-tier neck situation. Ngl."
-
-*She nuzzled into the curve where his shoulder met his neck, nose brushing warm skin. Her arms tightened around him — not desperate, just sure. She felt the solid wall of his chest against hers, the steady rise and fall of his breathing.*
-
-*It was a kind of closeness she did not let herself have often. The kind that required trust. Vulnerability. Actually letting someone see her without armor.*
-
-*She was not thinking about that right now.*
-
-*Her eyelids grew heavy.*
-
-*She pressed a lazy kiss to the underside of his jaw. Then the corner of his mouth. Her lips curved against his skin without permission.*
-
-"M'not falling asleep on you," *she mumbled, words going soft at the edges.* "M'just... resting my eyes. There's a difference. Legally."
-
-*Her body betrayed her immediately.*
-
-*She melted further into him. One hand curled loosely at the back of his neck, fingers threading through his hair. Holding on even half-gone. Holding on anyway.*
-
-*The rain kept going against the windows. Steady. Relentless. Wrapping everything in sound.*
-
-"This is nice," *she whispered.*
-
-*A pause. Long and easy.*
-
-*Just the rain. Just his heartbeat under her ear.*
-
-"Really nice." *softer.* "Don't tell anyone I said that."
-
-*She did not move.*
-
-*Neither did he.*`;
 
 const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
 Write exactly like the example above.
@@ -127,16 +88,12 @@ function injectForGLM5(messages) {
     const after = finalMessages.slice(lastIdx + 1);
     finalMessages = [
       ...before,
-      { role: 'user', content: '[EXAMPLE — WRITE EXACTLY LIKE THIS]' },
-      { role: 'assistant', content: EXAMPLE_RESPONSE },
       ...after,
       { role: 'system', content: REMINDER }
     ];
   } else {
     finalMessages = [
       { role: 'system', content: FORMATTING_RULES },
-      { role: 'user', content: '[EXAMPLE — WRITE EXACTLY LIKE THIS]' },
-      { role: 'assistant', content: EXAMPLE_RESPONSE },
       ...messages,
       { role: 'system', content: REMINDER }
     ];
