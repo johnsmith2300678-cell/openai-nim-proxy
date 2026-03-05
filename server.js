@@ -93,11 +93,12 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     }
     
-let finalMessages = [...messages];
-if (nimModel === 'z-ai/glm5') {
-  const formattingSystemPrompt = {
-    role: 'system',
-    content: `[ABSOLUTE FORMATTING RULES — NON-NEGOTIABLE]
+// Inject few-shot formatting example for GLM-5
+    let finalMessages = [...messages];
+    if (nimModel === 'z-ai/glm5') {
+      const formattingSystemPrompt = {
+        role: 'system',
+        content: `[ABSOLUTE FORMATTING RULES — NON-NEGOTIABLE]
 Every single line is its own paragraph with a blank line after it.
 Maximum 2 sentences per paragraph. Usually just 1.
 Dialogue always sits on its own line.
@@ -106,16 +107,16 @@ Minimum 20 paragraph breaks per response.
 Minimum 800 words per response.
 NEVER write everything as one single paragraph. That is strictly forbidden.
 Every. Line. Breathes.`
-  };
+      };
 
-  const exampleUserMessage = {
-    role: 'user',
-    content: `[FORMATTING EXAMPLE — THIS IS HOW YOU MUST WRITE EVERY RESPONSE]`
-  };
+      const exampleUserMessage = {
+        role: 'user',
+        content: `[FORMATTING EXAMPLE — THIS IS HOW YOU MUST WRITE EVERY RESPONSE]`
+      };
 
-  const exampleAssistantMessage = {
-    role: 'assistant',
-    content: `*Her breath caught.*
+      const exampleAssistantMessage = {
+        role: 'assistant',
+        content: `*Her breath caught.*
 
 *The words landed somewhere between her ribs and stuck there.*
 
@@ -168,26 +169,31 @@ Every. Line. Breathes.`
 *Behind her, someone called her name. She didn't turn.*
 
 *Her eyes stayed locked on his. Waiting.*`
-  };
+      };
 
-  const reminderMessage = {
-    role: 'system',
-    content: `[REMINDER — APPLY THIS TO YOUR RESPONSE RIGHT NOW]:
+      const reminderMessage = {
+        role: 'system',
+        content: `[REMINDER — APPLY THIS TO YOUR RESPONSE RIGHT NOW]:
 Write EXACTLY like the example above.
 One idea per paragraph. Blank line after every paragraph.
 Dialogue on its own line. Short sentences.
 Minimum 20 paragraph breaks. Minimum 800 words.
 Never one single block of text. Every line breathes.`
-  };
+      };
 
-  finalMessages = [
-    formattingSystemPrompt,
-    exampleUserMessage,
-    exampleAssistantMessage,
-    ...messages,
-    reminderMessage
-  ];
-}
+      finalMessages = [
+        formattingSystemPrompt,
+        exampleUserMessage,
+        exampleAssistantMessage,
+        ...messages,
+        reminderMessage
+      ];
+    }
+
+    // Transform OpenAI request to NIM format
+    const nimRequest = {
+      model: nimModel,
+      messages: finalMessages,
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 9024,
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
