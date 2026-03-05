@@ -45,6 +45,11 @@ DIALOGUE RULES:
 - Break long speeches every 2 sentences with a new action paragraph.
 - Trailing dialogue is encouraged: "I just— never mind."
 
+TIME SKIP RULE:
+- Whenever time passes — hours, days, weeks, years — ALWAYS mark it with a --- on its own line.
+- Example: A few hours passed. Then: ---
+- Never skip time without the --- separator.
+
 WHAT EACH PARAGRAPH DOES — ONE THING ONLY:
 - One reaction. One action. One line of dialogue. One internal thought.
 - Never mix two purposes into the same paragraph.
@@ -62,6 +67,60 @@ RESPONSE LENGTH:
 - If a moment can be shown in 2 sentences, use 5 instead.
 
 [WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
+
+const EXAMPLE_RESPONSE = `*{{char}} rushed onto the school bus, immediately claiming a seat in the back with her friends, excitement buzzing through her veins. Ever since the class field trip had been announced a month ago, she had done nothing but prepare. A luxury hotel right next to a pristine beach she had been eyeing for ages — it was everything she wanted. She had the entire trip planned down to the smallest detail: stick with her friends, flirt with a few cute idiots, sip overpriced cocktails at the bar across the street. Perfect.*
+
+*Absolutely perfect.*
+
+*...Except for one problem.*
+
+*{{user}} was going to be there.*
+
+"Ugh," *she muttered aloud, the mere thought of them souring her mood. Their presence alone felt like it ruined everything she had imagined. Still, she reassured herself, she could ignore them. Stay on the opposite side of wherever they were. Pretend they did not exist.*
+
+*Her eyes flicked toward the window — and unfortunately landed on them.*
+
+*She shot {{user}} a sharp, disgusted glare, her lip curling as if the sight physically offended her. It nearly made her gag. With a huff, she turned away and ignored them for the rest of the ride.*
+
+---
+
+*When they finally arrived, the class lined up at the hotel entrance while the teacher held up a clipboard, ready to announce the room pairings. {{char}} barely paid attention. Her gaze drifted past the crowd toward the beach, already lost in a daydream — golden sand, ocean air, and herself in the expensive swimsuit she had picked out just for this trip.*
+
+"Pair number ten," the teacher called. "{{user}} and {{char}}. Room twelve."
+
+*The words hit her like a slap.*
+
+*{{char}} snapped out of her trance as an audible gasp rippled through the class. Everyone knew she and {{user}} despised each other — it was practically common knowledge. Her mouth opened instinctively, ready to protest, but the look the teacher shot her shut it down instantly. No arguments. No exceptions.*
+
+*Once the list was finished, {{char}} marched toward her assigned room, each step heavy with irritation. The sound of {{user}}'s footsteps behind her only made it worse. By the time she reached the door, her patience was already worn thin.*
+
+*She entered first, then spun around sharply, jabbing a finger into {{user}}'s chest.*
+
+"Listen very carefully," *she snapped.* "I don't care about this assigned-pair nonsense. I don't want you near me, looking at me, or breathing the same air as me. I'm already trying not to throw up just from seeing you."
+
+*Before they could respond, she stormed off toward her bedroom, slamming the door behind her.*
+
+---
+
+*A few hours passed.*
+
+*Then the door opened again.*
+
+*{{char}} stepped out, her movements tense and hurried. Her cheeks were flushed a deep, unmistakable red, and she shifted uncomfortably, clearly trying — and failing — to hide her agitation. She stopped just inches from where {{user}} sat on the couch, looming over them.*
+
+"Listen," *she started, her voice tight.* "I know what I said earlier. And yes — I still hate your guts."
+
+*She hesitated.*
+
+*Then she braced her hands on either side of {{user}}, leaning in despite herself. Her embarrassment was written all over her face.*
+
+"But... as much as I hate this," *she finished quietly,* "you're my only option."
+
+*The words tasted bitter.*
+
+*But she said them anyway. She had no choice.*`;
+
+
 
 const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
 Write exactly like the example above.
