@@ -273,13 +273,17 @@ app.post('/v1/chat/completions', async (req, res) => {
     if (nimModel === 'z-ai/glm5') {
       finalMessages = injectForGLM5(messages);
     }
+
+    // Force streaming for GLM-5 on free Render tier
+    // This keeps the connection alive and bypasses the 30s timeout
+    const forceStream = nimModel === 'z-ai/glm5' ? true : (stream || false);
     
     const nimRequest = {
       model: nimModel,
       messages: finalMessages,
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 9024,
-      stream: stream || false
+      stream: forceStream
     };
 
     if (ENABLE_THINKING_MODE) {
@@ -291,11 +295,10 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: stream ? 'stream' : 'json',
-      timeout: 120000
+      responseType: forceStream ? 'stream' : 'json'
     });
     
-    if (stream) {
+    if (forceStream) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
