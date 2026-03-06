@@ -250,7 +250,8 @@ app.post('/v1/chat/completions', async (req, res) => {
           max_tokens: 1
         }, {
           headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-          validateStatus: (status) => status < 500
+          validateStatus: (status) => status < 500,
+          timeout: 10000
         }).then(apiRes => {
           if (apiRes.status >= 200 && apiRes.status < 300) nimModel = model;
         });
@@ -285,52 +286,14 @@ app.post('/v1/chat/completions', async (req, res) => {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
     
-    let response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: stream ? 'stream' : 'json'
+      responseType: stream ? 'stream' : 'json',
+      timeout: 120000
     });
-
-    // Single paragraph detection + auto retry (non-streaming GLM-5 only)
-    if (nimModel === 'z-ai/glm5' && !stream) {
-      const firstContent = response.data?.choices?.[0]?.message?.content || '';
-      if (isSingleParagraph(firstContent)) {
-        console.log('Single paragraph detected — auto retrying with stronger formatting demand...');
-        const retryMessages = buildRetryMessages(finalMessages);
-        const retryRequest = {
-          model: nimModel,
-          messages: retryMessages,
-          temperature: 0.8,
-          max_tokens: max_tokens || 9024,
-          stream: false
-        };
-        if (ENABLE_THINKING_MODE) {
-          retryRequest.extra_body = { chat_template_kwargs: { thinking: true } };
-        }
-        try {
-          const retryResponse = await axios.post(`${NIM_API_BASE}/chat/completions`, retryRequest, {
-            headers: {
-              'Authorization': `Bearer ${NIM_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            responseType: 'json'
-          });
-          const retryContent = retryResponse.data?.choices?.[0]?.message?.content || '';
-          if (!isSingleParagraph(retryContent)) {
-            console.log('Retry successful — formatted response received.');
-            response = retryResponse;
-          } else {
-            console.log('Retry also returned single paragraph — sending retry response anyway.');
-            response = retryResponse;
-          }
-        } catch (retryErr) {
-          console.error('Retry failed:', retryErr.message);
-          // Fall through and use original response
-        }
-      }
-    }
     
     if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
