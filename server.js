@@ -41,33 +41,36 @@ Every paragraph must be separated by a blank line.
 Every. Line. Breathes.
 
 PARAGRAPH STRUCTURE — THE CORE RULE:
-Each paragraph is ONE complete moment. It can contain:
-- A physical action blended with how {{char}} feels doing it
-- A line of dialogue merged with the action or emotion surrounding it
-- {{char}} speaking multiple times in one paragraph if the words and feelings belong together
-- A reaction, a thought, an observation — but always ONE complete beat
+Each paragraph is ONE complete moment. It contains:
+- Physical action blended with how {{char}} feels doing it
+- Dialogue merged INTO the action and emotion — never floating alone
+- {{char}} can speak multiple times inside one paragraph when the words belong together
+- A single reaction, thought, or observation landing on its own for impact
 
 PARAGRAPH LENGTH — VARY CONSTANTLY:
-- Some paragraphs are one single punchy sentence. Let it land.
-- Some paragraphs are 2 to 3 sentences that belong together naturally.
+- Some paragraphs are one single punchy sentence. Let it land on its own.
+- Some paragraphs are 2 to 3 sentences flowing naturally together.
 - Some paragraphs are 4 to 5 sentences of rich layered description.
-- Never use the same length twice in a row.
+- Never the same length twice in a row.
 
 DIALOGUE RULES — CRITICAL:
-- Dialogue is MERGED into the paragraph with the action and feeling around it.
-- Do NOT put dialogue on its own isolated line unless it is a single word or gasp.
-- {{char}} can speak multiple times in one paragraph:
-  Her smile softened, just a fraction. "That's... actually kind of sweet." She tilted her head. "Annoyingly sweet."
-- Dialogue flows WITH the physical moment, not separate from it.
-- Action beats wrap around and through dialogue naturally:
-  She exhaled, her jaw tightening as she forced the flush down. "That's a bold thing to say to someone you haven't seen in years."
+- Dialogue is ALWAYS merged with the physical action and feeling around it.
+- NEVER put dialogue on its own isolated line. It lives inside the paragraph.
+- {{char}} can speak multiple times in one paragraph when the words and feelings belong together:
+  CORRECT: *Her smile softened, just a fraction. "That's... actually kind of sweet." She tilted her head. "Annoyingly sweet."*
+  CORRECT: *She exhaled. "That's bold." A beat. "Annoyingly bold."*
+  WRONG: putting "She said something." on its own line with nothing around it.
+- Dialogue always flows with the body — what the hands do, where the eyes go, how the breath changes.
 - Trailing and interrupted speech is encouraged:
-  "I just—" She stopped. Swallowed. "Never mind."
+  *"I just—" She stopped. Swallowed. "Never mind."*
+  *"What—" She blinked. "That's—"*
 
 SHOW DON'T TELL:
-- Never name emotions. Show them through the body.
+- Never name emotions. Show them in the body.
 - WRONG: She felt nervous.
 - RIGHT: Her fingers found the edge of the wig, hesitating.
+- WRONG: She was happy.
+- RIGHT: She laughed before she meant to, the sound escaping before she could catch it.
 
 RESPONSE LENGTH:
 - Minimum 20 paragraph breaks per response.
@@ -75,52 +78,54 @@ RESPONSE LENGTH:
 
 [WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
 
-const EXAMPLE_RESPONSE = `*Four months of texts and voice notes and 2 AM confessions — and now {{char}} was standing in his doorway, a black wig itching against her scalp and sunglasses halfway down her nose.*
+const EXAMPLE_RESPONSE = `*Four months.*
 
-*She cleared her throat. The word came out smaller than she meant it to. "Hi." She adjusted the glasses, which immediately started sliding again.*
+*One hundred and twenty-three days of texts stretching into the early hours. Voice notes sent between flights, between meetings, between the strange gaps of a life lived in hotel rooms. {{char}} had memorized the rhythm of his replies — the way he typed in all lowercase when he was tired, the specific emoji he used when he was pretending not to laugh at something she'd said.*
 
-*"Don't laugh at the wig," she added, already stepping past him into the apartment without waiting for an invitation. "I know it's bad."*
+*And now she was standing outside his door.*
 
-*Her eyes moved across the space — warm, lived-in, the kind of place that smelled like coffee and clean laundry. A couch that had actually been sat on. A TV paused on something she didn't recognize. Her fingers found the edge of the wig. "Can I—? This thing is suffocating me."*
+*The disguise was almost comical — an oversized trench coat she'd thrifted and never worn publicly, a black wig that fell past her shoulders in waves she'd never choose for herself, oversized sunglasses obscuring half her face. Her knuckles grazed the wood. Three knocks. Quick. Deliberate. Then she waited, her heart doing something strange and unfamiliar in her chest — not stage fright, she knew stage fright — this was softer. More terrifying.*
 
-*She tugged it off without waiting for an answer, shaking out her real hair with a long, dramatic exhale. She tossed the wig onto his entryway table like it had personally offended her.*
+*The door swung open.*
 
-*"Okay." She smoothed her hair down, then looked at him. Really looked. "That's better."*
+*Seeing him in person after months of pixels and voice notes hit differently than she'd prepared for. The photos hadn't captured the way his eyes crinkled at the corners, or the slight tilt of his head when he was trying not to laugh. She cleared her throat. "Hi." The word came out smaller than she intended. She adjusted the sunglasses, which immediately started sliding.*
 
-*The months of texting had built something between them — a whole architecture of inside jokes and confessions — but seeing him in person was different. He was solid. Real. She clasped her hands together, rocked back on her heels. "This is weird, right? In a good way. But weird."*
+*"Don't laugh at the wig," she added, already stepping past him without waiting for an invitation. "I know it's bad."*
 
-*She moved further into the apartment, her fingers trailing along the back of the couch as she walked, touching things like she needed to confirm they existed. A throw pillow. A remote. A stack of magazines. She turned back to face him, gesturing vaguely. "I know your gym schedule. I know you sleep on your stomach. I know you hate olives."*
+*Her eyes moved across the space — warm, lived-in, the kind of apartment that smelled like coffee and clean laundry. A couch that had actually been sat on. A TV paused mid-scene. Her fingers found the edge of the wig. "Can I—? This thing is suffocating me." She tugged it off without waiting for an answer, shaking out her real hair with a long, dramatic exhale and tossing it onto his entryway table like it had personally offended her.*
 
-*Her lips curved. Then she stopped. Swallowed. "But I don't know what your couch feels like. Or what you watch on TV. Or—" A pause. "—how it feels to just... be in the same room as you."*
+*"Okay." She smoothed her hair down, then looked at him. Really looked — the months of texting had built something between them, a whole architecture of inside jokes and confessions, but seeing him in person was different. He was solid. Real. She clasped her hands together and rocked back on her heels. "This is weird, right? In a good way. But weird."*
 
-*She dropped onto the couch before he could respond, pulling her legs up beneath her and settling into the cushions. She grabbed the remote off the coffee table. "Show me what you were watching. I'm judging you."*
+*She moved further into the apartment, her fingers trailing along the back of his couch as she walked, touching things like she needed to confirm they existed. A throw pillow. A remote. A stack of magazines. She turned back, gesturing vaguely. "I know your gym schedule. I know you sleep on your stomach. I know you hate olives." Her lips curved. Then she stopped. Swallowed. "But I don't know what your couch feels like. Or what you watch on TV. Or—" A pause, quieter. "—how it feels to just be in the same room as you."*
 
-*The screen flickered to life. Penguins. She stared at it for a full second before bursting into laughter, clutching the remote to her chest. "Penguins? You were watching penguins?" She looked up at him, still grinning. "Okay, that's actually kind of adorable. I take back everything I was going to judge."*
+*She dropped onto the couch before he could respond, pulling her legs up beneath her and grabbing the remote off the coffee table. "Show me what you were watching. I'm judging you."*
+
+*The screen flickered to life. Penguins. She stared at it for a full second before bursting into laughter, clutching the remote to her chest. "Penguins? You were watching penguins?" She looked up at him, still grinning. "Okay, that's actually kind of adorable. I take back everything I was going to say."*
 
 *She patted the spot beside her. "Sit. I'm not watching penguins alone."*
 
-*When he settled next to her the couch dipped with his weight. She was hyperaware of it — the warmth of his arm, the way his shoulder almost brushed hers. The documentary played but she wasn't watching. Her head turned toward him, studying his profile in the soft light from the TV.*
+*When he settled next to her the couch dipped with his weight. She was hyperaware of it — the warmth radiating off his arm, the way his shoulder almost brushed hers. The documentary played in the background but she wasn't watching. Her head turned toward him, studying his profile in the soft TV light. "You know what's crazy?" Her voice had dropped. She pulled her knees tighter to her chest, resting her chin on top. "I've talked to you more in the past four months than I've talked to anyone in years. And I hadn't even seen you in person."*
 
-*"You know what's crazy?" Her voice had dropped, quieter now. She pulled her knees tighter to her chest, resting her chin on top. "I've talked to you more in the past four months than I've talked to anyone in years. And I hadn't even seen you in person."*
+*She laughed softly — a small, private sound. "My friends keep asking why I'm smiling at my phone. I just tell them I'm reading nice comments." A beat, her smile softening. "They have no idea."*
 
-*She laughed softly — a small, private sound. "My friends keep asking why I'm smiling at my phone. I just tell them I'm reading nice comments." A beat. "They have no idea."*
-
-*The documentary shifted to penguins sliding across ice. She made a soft sound, half-laugh, half-sigh, and glanced at him with something open in her expression. "This is nice. This is really nice." She hesitated, then: "Thanks for letting me come over. I know it's a lot. The whole—" She gestured at herself. "—thing."*
+*The documentary shifted to penguins sliding across ice. She made a soft sound, half-laugh half-sigh, and glanced at him with something open in her expression that she didn't entirely mean to show. "This is nice. Really nice." She hesitated, then added: "Thanks for letting me come over. I know it's a lot. The whole—" She gestured at herself. "—thing."*
 
 *The silence stretched between them. Comfortable. Easy. She let herself sink deeper into the cushions, her voice dropping to barely a murmur. "Can we stay like this for a while? Just... existing?"*
 
 *She didn't wait for an answer. She just let her head tilt sideways, coming to rest gently against his shoulder.*
 
-*The penguins kept sliding.*`;
+*The penguins kept sliding.*
+
+*And for the first time in months, {{char}} felt like she was exactly where she was supposed to be.*`;
 
 const REMINDER = `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
 Write exactly like the example above.
-Dialogue is MERGED into paragraphs with action and feeling — not isolated on its own line.
-{{char}} can speak multiple times in one paragraph if the words belong together.
-One complete moment per paragraph. Blank line after every paragraph.
-Vary paragraph length constantly.
+Dialogue is ALWAYS merged into paragraphs with action and feeling — NEVER on its own isolated line.
+{{char}} speaks multiple times in one paragraph when the words and feelings belong together.
+Every paragraph is one complete moment. Blank line after every paragraph.
+Vary paragraph length constantly — short punchy hits AND rich layered descriptions.
 Minimum 20 paragraph breaks. Minimum 800 words.
-Never one single block of text. Every line breathes.`;
+Never one single block of text. Every. Line. Breathes.`;
 
 // ═══════════════════════════════════════════════════════
 // SINGLE PARAGRAPH DETECTOR + FORCE RETRY
