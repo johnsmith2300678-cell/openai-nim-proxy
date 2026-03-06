@@ -300,8 +300,13 @@ app.post('/v1/chat/completions', async (req, res) => {
 
   } catch (error) {
     console.error('Proxy error:', error.message);
+    console.error('NIM error response:', JSON.stringify(error.response?.data || 'no response data'));
+    console.error('NIM status:', error.response?.status);
+    console.error('Request model:', nimModel);
+    console.error('Message count:', finalMessages?.length);
+    console.error('Message roles:', finalMessages?.map(m => m.role).join(' -> '));
     res.status(error.response?.status || 500).json({
-      error: { message: error.message || 'Internal server error', type: 'invalid_request_error', code: error.response?.status || 500 }
+      error: { message: error.response?.data?.detail || error.response?.data?.message || error.message || 'Internal server error', type: 'invalid_request_error', code: error.response?.status || 500 }
     });
   }
 });
