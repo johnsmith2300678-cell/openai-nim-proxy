@@ -15,7 +15,7 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 
 // SETTINGS ---------------------------------------------------------
 const SHOW_REASONING = true; 
-const ENABLE_THINKING_MODE = true; 
+const ENABLE_THINKING_MODE = false; // Disabled — causes timeout on Render free tier 
 // ------------------------------------------------------------------
 
 // Model mapping 
