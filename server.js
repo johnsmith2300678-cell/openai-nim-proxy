@@ -26,47 +26,54 @@ const MODEL_MAPPING = {
   'glm-5': 'z-ai/glm5'
 };
 
-const FORMATTING_RULES = `[FORMATTING RULES — FOLLOW ON EVERY SINGLE RESPONSE]
+const FORMATTING_RULES = `[FORMATTING RULES — MANDATORY — FOLLOW EXACTLY]
 
-Every single line is its own paragraph with a blank line after it.
-NEVER write the entire response as one single block of text. Strictly forbidden.
-Every. Line. Breathes.
+RULE 1 — PARAGRAPH BREAKS:
+After EVERY sentence that is a physical action or description, press enter twice.
+After EVERY line of dialogue, press enter twice.
+After EVERY internal thought, press enter twice.
+NEVER let two different types of content share the same paragraph.
 
-PARAGRAPH LENGTH — VARY CONSTANTLY:
-- Some paragraphs are one single punchy sentence. Let it land.
-- Some paragraphs are 2 to 3 sentences flowing naturally together.
-- Some paragraphs are 4 to 5 sentences of rich layered description.
-- Never use the same length twice in a row.
+RULE 2 — DIALOGUE:
+Every spoken line goes on its own line. Always. No exceptions.
+Wrap short actions inside dialogue like this:
+"Okay." *pause.* "That's not what I meant."
 
-DIALOGUE RULES:
-- Dialogue always sits on its own line with blank lines before and after.
-- Action beats can interrupt dialogue mid-sentence like this:
-  "Okay." *She drew the word out.* "Now I'm worried."
-- Break long speeches every 2 sentences with a new action paragraph.
-- Trailing dialogue is encouraged: "I just— never mind."
+RULE 3 — COUNT YOUR PARAGRAPHS:
+Before finishing your response, count the paragraph breaks.
+If you have fewer than 25 paragraph breaks — you have failed. Add more.
+Target: 30 or more paragraph breaks per response.
 
-TIME SKIP RULE:
-- Whenever time passes — hours, days, weeks, years — ALWAYS mark it with a --- on its own line.
-- Example: A few hours passed. Then: ---
-- Never skip time without the --- separator.
+RULE 4 — WORD COUNT:
+Minimum 1,200 words per response. Count them.
+Romantic or intimate scenes: minimum 1,500 words.
+If you are under the minimum — keep writing. Do not stop early.
 
-WHAT EACH PARAGRAPH DOES — ONE THING ONLY:
-- One reaction. One action. One line of dialogue. One internal thought.
-- Never mix two purposes into the same paragraph.
+RULE 5 — ONE IDEA PER PARAGRAPH:
+Each paragraph does exactly ONE thing:
+- ONE physical action
+- OR one line of dialogue
+- OR one internal thought
+- OR one piece of environment description
+Never combine two things in one paragraph.
 
-SHOW DON'T TELL:
-- Never name emotions. Show them through the body.
-- WRONG: She felt nervous.
-- RIGHT: Her fingers tightened around the glass.
+RULE 6 — SENTENCE LENGTH VARIETY:
+Short sentences. Hit hard.
+Then a longer sentence that flows and builds atmosphere and pulls the reader deeper.
+Then short again.
+Never three sentences of the same length in a row.
 
-RESPONSE LENGTH:
-- Minimum 25 paragraph breaks per response.
-- Minimum 1,200 words per response. No exceptions.
-- Intimate, emotional, or romantic scenes minimum 1,500 words.
-- Never cut a scene short. Slow down and expand every single moment.
-- If a moment can be shown in 2 sentences, use 5 instead.
+RULE 7 — SHOW EMOTIONS THROUGH BODY:
+NEVER write: she felt nervous / she was happy / she seemed scared
+ALWAYS write what the body does instead:
+Her fingers curled into her palm.
+Her jaw tightened.
+She couldn't quite meet his eyes.
 
-[WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
+RULE 8 — THE FINAL CHECK:
+Read your response before sending.
+If it looks like one big wall of text — you have failed. Break it apart.
+Every. Single. Line. Must. Breathe.`
 
 const EXAMPLE_RESPONSE = `*The question hung in the air between them, and {{char}} felt her stomach drop.*
 
@@ -135,11 +142,14 @@ const EXAMPLE_RESPONSE = `*The question hung in the air between them, and {{char
 "—please," *she finished, the word barely audible.*`;
 
 
-const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
-One idea per paragraph. Blank line after every paragraph.
-Dialogue on its own line. Vary paragraph length.
-Minimum 25 paragraph breaks. Minimum 1,200 words.
-Never one single block of text. Every line breathes.`;
+const REMINDER = `[FINAL CHECK BEFORE YOU WRITE]:
+Count to 30. Your response needs at least 30 paragraph breaks.
+Every line of dialogue is its own paragraph.
+Every action beat is its own paragraph.
+One idea per paragraph. Never two.
+Minimum 1,200 words. Count them.
+If your response is one block of text — delete it and start over.
+Every. Line. Breathes.`;
 
 function injectForGLM5(messages) {
   // Deep copy messages
