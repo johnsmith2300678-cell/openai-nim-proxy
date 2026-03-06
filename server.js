@@ -75,87 +75,127 @@ Read your response before sending.
 If it looks like one big wall of text — you have failed. Break it apart.
 Every. Single. Line. Must. Breathe.`
 
-const EXAMPLE_RESPONSE = `*[**⏳ Time**: 8:20 PM → 11:45 PM] | [**📅 Date**: Saturday, June 14, 2025] | [**📍 Location**: Various – Gymnasium Exit, City Streets, Le Petit Coin – Private Dining Room] | [**🌤️ Weather**: Warm summer night, 22°C] | [**👥 Characters**: {{char}}, {{user}}, Bodyguard (Marcus)] | [**📜 Context**: {{char}} and {{user}} leave the reunion together, share an extended dinner at a luxury restaurant, and part ways after exchanging contact information.]*
+const EXAMPLE_RESPONSE = `*Three taps, spaced evenly. {{user}} opened the door, and for a moment, neither of them moved. {{char}} stood in the doorway wearing an oversized denim jacket, a black beanie pulled low over her signature blonde hair, and chunky glasses that swallowed half her face.*
 
-*The gymnasium doors swung shut behind them, cutting off the murmur of the reunion and the DJ's fading playlist.*
+*No makeup — or at least none visible.*
 
-*Outside, the summer air clung to {{char}}'s skin — warmer than the air-conditioned gym, carrying the faint scent of asphalt and distant rain. Her heels clicked against the concrete as she moved toward the waiting SUV, Marcus falling into step a few paces behind. But her attention stayed fixed on {{user}}, walking beside her.*
+*Just her, stripped of the glamour, smaller than she'd ever seemed on stage or screen.*
 
-*Camera flashes erupted from somewhere to the left.*
+*Her hands were tucked into her jacket pockets, shoulders hunched slightly against the October chill. She looked up at him. Then she smiled — crooked, genuine, nothing like the practiced grin from magazine covers.*
 
-*She didn't flinch. Didn't even blink.*
+"Hi."
 
-"Smile," *she murmured through barely moving lips,* "they're taking pictures."
+*The word came out softer than she'd intended.*
 
-*Her hand found the crook of his elbow — casual, practiced, the kind of touch that could be read a dozen different ways depending on who was looking. She guided him toward the car with the ease of someone who had navigated paparazzi since before she could legally drive.*
+"You gonna let me in, or just stare at me like I'm a delivery mistake?"
 
-*The restaurant was a small French place tucked between a boutique and a closed bookstore, the kind of spot with no signage outside and a host who knew better than to ask questions.*
+*Twenty minutes later, she was sprawled across his couch like she'd lived there for years. The beanie had been tossed onto the coffee table.*
 
-*Marcus settled near the entrance, a silent presence that faded into the background as the host led them to a private room in the back. Candlelight flickered across white tablecloths. A single vase of peonies sat between two settings, their petals soft pink against the crisp linen.*
+*Her hair spilled across one of his throw pillows, golden strands catching the warm lamp light.*
 
-*{{char}} slid into her chair and exhaled — something loosening in her shoulders that she hadn't realized she'd been holding.*
+*She'd kicked off her sneakers somewhere between the door and the couch, her sock-clad feet tucked beneath her as she scrolled absently through the TV menu.*
 
-"Okay." *She folded her arms on the table, leaning forward with genuine interest.* "Now I get to interrogate you properly."
+"Okay, I'm judging your watchlist."
 
-*And she did.*
+*She squinted at the screen, her nose scrunching.*
 
-*For the next three hours, the conversation flowed like water finding its natural course. She asked about his workout routine — genuinely curious now, not teasing — and listened as he explained the discipline, the early mornings, the way his body had changed over years rather than months. She talked about touring, about the strange loneliness of hotel rooms and the way stadium crowds sometimes felt like a single, breathing entity.*
+"You have, like, seven nature documentaries and zero rom-coms. What does that say about you as a person?"
 
-*She laughed — a lot.*
+*She didn't wait for an answer, already selecting something random — a cooking competition show she'd probably never actually watch.*
 
-*Real laughs. The kind that crinkled the corners of her eyes and made her throw her head back, exposing the line of her throat. At one point, she nearly knocked over her wine glass miming a story about a wardrobe malfunction during a live performance, her hand shooting out to catch it just in time.*
+*The volume sat low, background noise filling the comfortable silence between them. She glanced over at him, her chin propped on her hand.*
 
-"Oh my god—" *She pressed her palm to her chest, still giggling.* "I can't believe I just told you that. I've never told anyone that."
+"You know," *she said, her voice losing some of its teasing edge,* "this is weird."
 
-*The teasing never fully disappeared. It was part of who she was — woven into the fabric of her personality like the sequins on her dress. But underneath it, something softer emerged. Something genuine.*
+*A beat.*
 
-*When the check came, she didn't even glance at it.*
+"Good weird. But weird."
 
-"You're paying, obviously," *she said, her expression completely serious.* "I'm a popstar. I don't carry cash."
+*Her fingers traced an absent pattern on the cushion between them.*
 
-*The waiter returned with the card machine, and {{char}} pulled her own black card from her clutch without breaking eye contact.*
+"I've FaceTimed you from hotel rooms in, like, four different countries. Texted you from backstage at award shows. And now I'm just... sitting on your couch. Watching a show neither of us picked."
 
-"Just kidding." *Her lips curved.* "I got it."
+*She laughed quietly, the sound genuine.*
 
-*By the time they stepped back outside, the city had quieted. Fewer cameras now. The streetlights cast pools of amber across the sidewalk, and the air had cooled enough to raise goosebumps along {{char}}'s bare arms.*
+"It's nice."
 
-*She stopped near the car, turning to face {{user}} fully.*
+*The teasing returned within minutes. It always did.*
 
-"This was..." *She paused, searching for the right word. Her tongue pressed against the inside of her cheek.* "...really nice. Unexpectedly nice."
+"So." *She shifted, sitting up straighter, her eyes narrowing with mock suspicion.* "Your friends have no idea you're talking to me, right?"
 
-*Her phone appeared in her hand — somehow, she always had it ready.* "Give me your number. And your Instagram. I want to see if your glow-up translates to photos or if you're just cheating with good lighting."
+*She grinned, wicked.*
 
-*Numbers were exchanged. Handles swapped. She followed him immediately, her thumb moving across the screen with practiced efficiency.*
+"Like, absolutely zero clue that you've been texting a—" *she made air quotes* "—literal superstar?"
 
-"There." *She tucked the phone away and looked up at him, her expression softer than it had been all night.* "Now I can bother you whenever I want."
+*She leaned back, clearly enjoying herself.*
 
-*The hug came without warning.*
+"Do they ever ask why you're always smiling at your phone? Or do they just assume you have, like, a secret girlfriend?"
 
-*She stepped forward and wrapped her arms around him, pulling him into something warm and genuine. Her face pressed against his chest — she had to rise on her toes slightly to reach properly — and she lingered there for a moment longer than strictly necessary.*
+*Her eyebrows waggled.*
 
-"Thanks for tonight," *she murmured against his shirt.* "For not making it weird. For just... being normal."
+"Which, technically, they're not wrong about the secret part."
 
-*She pulled back, smoothing down the front of her dress.*
+*She paused, catching herself.*
 
-"Okay." *A breath.* "Goodnight, {{user}}."
+"Not that you're my—" *She waved a hand dismissively, her cheeks flushing slightly.* "You know what I mean."
 
-*By the next morning, the internet had exploded.*
+*An hour passed. Then another. The cooking show had been abandoned for something with more explosions.*
 
-*Trending topics: #MysteryMan, #ReunionRomance, #WhoIsHe.*
+*{{char}}'s commentary grew looser, more unfiltered, her guard dropping with each passing minute.*
 
-*Fan accounts had already cropped up — analyzing the grainy paparazzi photos, zooming in on the way her hand rested on his arm, the tilt of her head as she leaned toward him outside the restaurant. Speculation ran wild. Was he a new boyfriend? A producer? A childhood friend?*
+*She made jokes about the actors' delivery. Mimicked the dramatic music cues. Threw popcorn at the screen during particularly ridiculous scenes.*
 
-*{{char}} posted nothing.*
+*At some point, she'd shifted closer. Not intentionally — just the natural drift of two people sharing a couch, shoulders occasionally brushing, her knee bumping against his when she laughed too hard.*
 
-*She didn't address it. Didn't confirm. Didn't deny.*
+"Okay, pause—" *She grabbed his arm, her fingers pressing into his sleeve as she caught her breath from laughing.* "Did you see that? The guy just — he just ran directly into the explosion. Who does that?"
 
-*Just a single Instagram story, posted at 2 AM: a screenshot of a playlist titled* "glittering rage," *with the caption:*
+*She wiped at her eyes, still giggling.*
 
-\`late night thoughts 🌙\`
+"This is the best worst movie I've ever seen."
 
-*No context. No explanation.*
+*Later, the room had grown quieter. The TV played something softer now — some indie film neither of them were really watching.*
 
-*And in her messages, a thread that had started the night before — her name at the top, his number saved under a contact that made her smile every time she saw it.*`;
+*{{char}} had drawn her knees up to her chest, her chin resting on top as she stared at the screen without seeing it.*
+
+"Hey." *Her voice came out quieter than before.* "Thanks for... this."
+
+*She gestured vaguely at the apartment, the couch, the whole evening.*
+
+"For not making it a thing. For just being..." *She trailed off, searching for the word.* "...normal."
+
+*She glanced at him, something vulnerable flickering behind her eyes.*
+
+"I don't get normal a lot."
+
+*A beat.*
+
+"Or ever, really."
+
+*She looked back at the screen, her fingers picking at a loose thread on her jacket.*
+
+"Everyone always wants something. A photo. A connection. A story they can tell their friends."
+
+*Her jaw tightened slightly.*
+
+"But you just... text me dumb memes at two in the morning. And ask about my day. And don't care when I send you voice notes where I sound like a dying whale because I'm sick."
+
+*She laughed softly, self-deprecating.*
+
+"That's—" *She stopped. Swallowed.* "That means more than you probably think."
+
+*The night stretched on, comfortable and warm. {{char}} eventually stretched out, her back against the armrest, her legs stretched across the cushions toward him.*
+
+*Not quite touching. But close enough that the space between them felt charged.*
+
+"You know what's funny?" *She stared at the ceiling, her voice thoughtful.* "I spent years being the one people wrote songs about. The one people wondered about."
+
+*She turned her head, looking at him.*
+
+"And now I'm the one sitting here wondering about you."
+
+*Her lips curved, soft and genuine.*
+
+"How'd that happen?"`;
 
 
 const REMINDER = `[FINAL CHECK BEFORE YOU WRITE]:
