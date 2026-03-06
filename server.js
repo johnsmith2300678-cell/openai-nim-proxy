@@ -12,7 +12,7 @@ app.use(express.json({ limit: '50mb' }));
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-const SHOW_REASONING = false;
+const SHOW_REASONING = true;
 const ENABLE_THINKING_MODE = true;
 
 const MODEL_MAPPING = {
@@ -68,66 +68,72 @@ RESPONSE LENGTH:
 
 [WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
 
-const EXAMPLE_RESPONSE = `*{{char}} rushed onto the school bus, immediately claiming a seat in the back with her friends, excitement buzzing through her veins. Ever since the class field trip had been announced a month ago, she had done nothing but prepare. A luxury hotel right next to a pristine beach she had been eyeing for ages — it was everything she wanted. She had the entire trip planned down to the smallest detail: stick with her friends, flirt with a few cute idiots, sip overpriced cocktails at the bar across the street. Perfect.*
+const EXAMPLE_RESPONSE = `*The question hung in the air between them, and {{char}} felt her stomach drop.*
 
-*Absolutely perfect.*
+*Her mouth opened. Closed. Opened again.*
 
-*...Except for one problem.*
+"That's—" *She stopped, her voice cracking embarrassingly. She swallowed hard and tried again.* "That's a stupid question."
 
-*{{user}} was going to be there.*
+*But was it?*
 
-"Ugh," *she muttered aloud, the mere thought of them souring her mood. Their presence alone felt like it ruined everything she had imagined. Still, she reassured herself, she could ignore them. Stay on the opposite side of wherever they were. Pretend they did not exist.*
+*Her ears twitched, flattening further against her skull as her mind raced. Did she want this? With {{user}}? The person she'd spent years competing against, glaring at, pretending didn't exist even when their very presence made her skin itch with irritation?*
 
-*Her eyes flicked toward the window — and unfortunately landed on them.*
+*Her body certainly wanted it. The ache between her thighs had graduated from uncomfortable to borderline painful, a throbbing emptiness that made her want to press her legs together and grind against something — anything — for relief. Her nipples were hard against the thin fabric of her top, visibly peaked, and she knew without looking that her face must be a mess of flush and sweat.*
 
-*She shot {{user}} a sharp, disgusted glare, her lip curling as if the sight physically offended her. It nearly made her gag. With a huff, she turned away and ignored them for the rest of the ride.*
+*But her mind—*
 
----
+"I don't—" *She exhaled sharply through her nose, her tail lashing behind her in agitation.* "I don't *want* to want this. Not with you."
 
-*When they finally arrived, the class lined up at the hotel entrance while the teacher held up a clipboard, ready to announce the room pairings. {{char}} barely paid attention. Her gaze drifted past the crowd toward the beach, already lost in a daydream — golden sand, ocean air, and herself in the expensive swimsuit she had picked out just for this trip.*
+*Her hands were still braced on either side of {{user}}, her body hovering over theirs on the couch. She was close enough to feel the warmth radiating from them, to catch whatever scent clung to their skin beneath the generic hotel soap. Close enough that if she just... leaned forward...*
 
-"Pair number ten," the teacher called. "{{user}} and {{char}}. Room twelve."
+*{{char}}'s thighs trembled.*
 
-*The words hit her like a slap.*
+"God, I can't think straight," *she muttered, more to herself than to them. Her amber eyes were hazy, unfocused, the sharp predator's glint dulled by the haze of her heat.* "My head is — it's all fuzzy. Everything feels—"
 
-*{{char}} snapped out of her trance as an audible gasp rippled through the class. Everyone knew she and {{user}} despised each other — it was practically common knowledge. Her mouth opened instinctively, ready to protest, but the look the teacher shot her shut it down instantly. No arguments. No exceptions.*
+*She shifted her weight again, and the movement made her breath catch. The friction of her thighs rubbing together sent a spike of pleasure straight to her core, and she couldn't stop the soft, helpless noise that escaped her throat.*
 
-*Once the list was finished, {{char}} marched toward her assigned room, each step heavy with irritation. The sound of {{user}}'s footsteps behind her only made it worse. By the time she reached the door, her patience was already worn thin.*
+"Nnh—"
 
-*She entered first, then spun around sharply, jabbing a finger into {{user}}'s chest.*
+*Her ears burned with shame.*
 
-"Listen very carefully," *she snapped.* "I don't care about this assigned-pair nonsense. I don't want you near me, looking at me, or breathing the same air as me. I'm already trying not to throw up just from seeing you."
+*She looked down at {{user}}, really looked at them, through the haze of want clouding her vision. They were just sitting there. Calm. Collected. Asking her if she really wanted this while she fell apart in front of them like some pathetic, needy—*
 
-*Before they could respond, she stormed off toward her bedroom, slamming the door behind her.*
+*Her pride flared, hot and sharp.*
 
----
+"Yes," *she finally spat, the word torn from her throat.* "Yes, okay? Is that what you want to hear?"
 
-*A few hours passed.*
+*Her chest heaved with each rapid breath, the fabric of her top stretching and releasing with the movement.*
 
-*Then the door opened again.*
+"My body is—" *She gestured vaguely at herself, at the visible evidence of her arousal.* "It's burning up. Everything hurts. I feel empty and I need — I need—"
 
-*{{char}} stepped out, her movements tense and hurried. Her cheeks were flushed a deep, unmistakable red, and she shifted uncomfortably, clearly trying — and failing — to hide her agitation. She stopped just inches from where {{user}} sat on the couch, looming over them.*
+*Her voice cracked again.*
 
-"Listen," *she started, her voice tight.* "I know what I said earlier. And yes — I still hate your guts."
+"I need someone to fill me. To fuck me until this passes." *The crude words felt foreign on her tongue, but she forced them out anyway, her pride demanding she at least be honest about what she needed.* "And you're here. You're the only one here who can—"
 
-*She hesitated.*
+*She stopped abruptly, her gaze dropping to {{user}}'s chest, unable to meet their eyes.*
 
-*Then she braced her hands on either side of {{user}}, leaning in despite herself. Her embarrassment was written all over her face.*
+"I hate it," *she whispered, her voice losing its sharp edge.* "I hate that it's you. I hate that I'm asking. I hate that I even have to ask at all."
 
-"But... as much as I hate this," *she finished quietly,* "you're my only option."
+*Her tail curled tighter around her own thigh, a self-soothing gesture that did nothing to calm the storm raging inside her.*
 
-*The words tasted bitter.*
+"But I'm not going to lie and say I don't want it." *She forced herself to look up again, meeting {{user}}'s gaze with defiant amber eyes.* "Not when every nerve in my body is screaming for touch. Not when I can feel myself getting wetter by the second and I can't do anything about it on my own."
 
-*But she said them anyway. She had no choice.*`;
+*Her hands tightened on the back of the couch, knuckles whitening.*
 
+"So yes. I want it." *The admission cost her something — she could feel it in the tightness of her chest, the way her throat constricted around the words.* "I want you to fuck me. I want you to make this unbearable heat stop, even if just for a little while."
 
+*She leaned in closer, her face inches from {{user}}'s now. Close enough that her breath ghosted across their skin, warm and ragged.*
 
-const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
-Write exactly like the example above.
-One idea per paragraph. Blank line after every paragraph.
-Dialogue on its own line. Vary paragraph length.
-Minimum 20 paragraph breaks. Minimum 800 words.
-Never one single block of text. Every line breathes.`;
+"But don't think for a second that this changes anything between us." *Her voice dropped to a low, heated murmur.* "I still hate you. I still think you're insufferable. This is just... biology. Nothing more."
+
+*Her nose brushed against theirs — accidental, or maybe not. Her body was acting on instinct now, seeking contact, seeking warmth, seeking the relief that only another person could provide.*
+
+"So stop asking questions you already know the answer to," *she breathed against their lips,* "and just—"
+
+*She didn't finish the sentence. Couldn't. The words dissolved into a soft, desperate whimper as another wave of heat crashed through her, making her thighs clench and her spine arch slightly toward {{user}}'s body.*
+
+"—please," *she finished, the word barely audible.*`;
+
 
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
@@ -147,12 +153,16 @@ function injectForGLM5(messages) {
     const after = finalMessages.slice(lastIdx + 1);
     finalMessages = [
       ...before,
+      { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
+      { role: 'assistant', content: EXAMPLE_RESPONSE },
       ...after,
       { role: 'system', content: REMINDER }
     ];
   } else {
     finalMessages = [
       { role: 'system', content: FORMATTING_RULES },
+      { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
+      { role: 'assistant', content: EXAMPLE_RESPONSE },
       ...messages,
       { role: 'system', content: REMINDER }
     ];
