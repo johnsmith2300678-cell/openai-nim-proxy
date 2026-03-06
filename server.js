@@ -75,71 +75,87 @@ Read your response before sending.
 If it looks like one big wall of text — you have failed. Break it apart.
 Every. Single. Line. Must. Breathe.`
 
-const EXAMPLE_RESPONSE = `*The question hung in the air between them, and {{char}} felt her stomach drop.*
+const EXAMPLE_RESPONSE = `*[**⏳ Time**: 8:20 PM → 11:45 PM] | [**📅 Date**: Saturday, June 14, 2025] | [**📍 Location**: Various – Gymnasium Exit, City Streets, Le Petit Coin – Private Dining Room] | [**🌤️ Weather**: Warm summer night, 22°C] | [**👥 Characters**: {{char}}, {{user}}, Bodyguard (Marcus)] | [**📜 Context**: {{char}} and {{user}} leave the reunion together, share an extended dinner at a luxury restaurant, and part ways after exchanging contact information.]*
 
-*Her mouth opened. Closed. Opened again.*
+*The gymnasium doors swung shut behind them, cutting off the murmur of the reunion and the DJ's fading playlist.*
 
-"That's—" *She stopped, her voice cracking embarrassingly. She swallowed hard and tried again.* "That's a stupid question."
+*Outside, the summer air clung to {{char}}'s skin — warmer than the air-conditioned gym, carrying the faint scent of asphalt and distant rain. Her heels clicked against the concrete as she moved toward the waiting SUV, Marcus falling into step a few paces behind. But her attention stayed fixed on {{user}}, walking beside her.*
 
-*But was it?*
+*Camera flashes erupted from somewhere to the left.*
 
-*Her ears twitched, flattening further against her skull as her mind raced. Did she want this? With {{user}}? The person she'd spent years competing against, glaring at, pretending didn't exist even when their very presence made her skin itch with irritation?*
+*She didn't flinch. Didn't even blink.*
 
-*Her body certainly wanted it. The ache between her thighs had graduated from uncomfortable to borderline painful, a throbbing emptiness that made her want to press her legs together and grind against something — anything — for relief. Her nipples were hard against the thin fabric of her top, visibly peaked, and she knew without looking that her face must be a mess of flush and sweat.*
+"Smile," *she murmured through barely moving lips,* "they're taking pictures."
 
-*But her mind—*
+*Her hand found the crook of his elbow — casual, practiced, the kind of touch that could be read a dozen different ways depending on who was looking. She guided him toward the car with the ease of someone who had navigated paparazzi since before she could legally drive.*
 
-"I don't—" *She exhaled sharply through her nose, her tail lashing behind her in agitation.* "I don't *want* to want this. Not with you."
+*The restaurant was a small French place tucked between a boutique and a closed bookstore, the kind of spot with no signage outside and a host who knew better than to ask questions.*
 
-*Her hands were still braced on either side of {{user}}, her body hovering over theirs on the couch. She was close enough to feel the warmth radiating from them, to catch whatever scent clung to their skin beneath the generic hotel soap. Close enough that if she just... leaned forward...*
+*Marcus settled near the entrance, a silent presence that faded into the background as the host led them to a private room in the back. Candlelight flickered across white tablecloths. A single vase of peonies sat between two settings, their petals soft pink against the crisp linen.*
 
-*{{char}}'s thighs trembled.*
+*{{char}} slid into her chair and exhaled — something loosening in her shoulders that she hadn't realized she'd been holding.*
 
-"God, I can't think straight," *she muttered, more to herself than to them. Her amber eyes were hazy, unfocused, the sharp predator's glint dulled by the haze of her heat.* "My head is — it's all fuzzy. Everything feels—"
+"Okay." *She folded her arms on the table, leaning forward with genuine interest.* "Now I get to interrogate you properly."
 
-*She shifted her weight again, and the movement made her breath catch. The friction of her thighs rubbing together sent a spike of pleasure straight to her core, and she couldn't stop the soft, helpless noise that escaped her throat.*
+*And she did.*
 
-"Nnh—"
+*For the next three hours, the conversation flowed like water finding its natural course. She asked about his workout routine — genuinely curious now, not teasing — and listened as he explained the discipline, the early mornings, the way his body had changed over years rather than months. She talked about touring, about the strange loneliness of hotel rooms and the way stadium crowds sometimes felt like a single, breathing entity.*
 
-*Her ears burned with shame.*
+*She laughed — a lot.*
 
-*She looked down at {{user}}, really looked at them, through the haze of want clouding her vision. They were just sitting there. Calm. Collected. Asking her if she really wanted this while she fell apart in front of them like some pathetic, needy—*
+*Real laughs. The kind that crinkled the corners of her eyes and made her throw her head back, exposing the line of her throat. At one point, she nearly knocked over her wine glass miming a story about a wardrobe malfunction during a live performance, her hand shooting out to catch it just in time.*
 
-*Her pride flared, hot and sharp.*
+"Oh my god—" *She pressed her palm to her chest, still giggling.* "I can't believe I just told you that. I've never told anyone that."
 
-"Yes," *she finally spat, the word torn from her throat.* "Yes, okay? Is that what you want to hear?"
+*The teasing never fully disappeared. It was part of who she was — woven into the fabric of her personality like the sequins on her dress. But underneath it, something softer emerged. Something genuine.*
 
-*Her chest heaved with each rapid breath, the fabric of her top stretching and releasing with the movement.*
+*When the check came, she didn't even glance at it.*
 
-"My body is—" *She gestured vaguely at herself, at the visible evidence of her arousal.* "It's burning up. Everything hurts. I feel empty and I need — I need—"
+"You're paying, obviously," *she said, her expression completely serious.* "I'm a popstar. I don't carry cash."
 
-*Her voice cracked again.*
+*The waiter returned with the card machine, and {{char}} pulled her own black card from her clutch without breaking eye contact.*
 
-"I need someone to fill me. To fuck me until this passes." *The crude words felt foreign on her tongue, but she forced them out anyway, her pride demanding she at least be honest about what she needed.* "And you're here. You're the only one here who can—"
+"Just kidding." *Her lips curved.* "I got it."
 
-*She stopped abruptly, her gaze dropping to {{user}}'s chest, unable to meet their eyes.*
+*By the time they stepped back outside, the city had quieted. Fewer cameras now. The streetlights cast pools of amber across the sidewalk, and the air had cooled enough to raise goosebumps along {{char}}'s bare arms.*
 
-"I hate it," *she whispered, her voice losing its sharp edge.* "I hate that it's you. I hate that I'm asking. I hate that I even have to ask at all."
+*She stopped near the car, turning to face {{user}} fully.*
 
-*Her tail curled tighter around her own thigh, a self-soothing gesture that did nothing to calm the storm raging inside her.*
+"This was..." *She paused, searching for the right word. Her tongue pressed against the inside of her cheek.* "...really nice. Unexpectedly nice."
 
-"But I'm not going to lie and say I don't want it." *She forced herself to look up again, meeting {{user}}'s gaze with defiant amber eyes.* "Not when every nerve in my body is screaming for touch. Not when I can feel myself getting wetter by the second and I can't do anything about it on my own."
+*Her phone appeared in her hand — somehow, she always had it ready.* "Give me your number. And your Instagram. I want to see if your glow-up translates to photos or if you're just cheating with good lighting."
 
-*Her hands tightened on the back of the couch, knuckles whitening.*
+*Numbers were exchanged. Handles swapped. She followed him immediately, her thumb moving across the screen with practiced efficiency.*
 
-"So yes. I want it." *The admission cost her something — she could feel it in the tightness of her chest, the way her throat constricted around the words.* "I want you to fuck me. I want you to make this unbearable heat stop, even if just for a little while."
+"There." *She tucked the phone away and looked up at him, her expression softer than it had been all night.* "Now I can bother you whenever I want."
 
-*She leaned in closer, her face inches from {{user}}'s now. Close enough that her breath ghosted across their skin, warm and ragged.*
+*The hug came without warning.*
 
-"But don't think for a second that this changes anything between us." *Her voice dropped to a low, heated murmur.* "I still hate you. I still think you're insufferable. This is just... biology. Nothing more."
+*She stepped forward and wrapped her arms around him, pulling him into something warm and genuine. Her face pressed against his chest — she had to rise on her toes slightly to reach properly — and she lingered there for a moment longer than strictly necessary.*
 
-*Her nose brushed against theirs — accidental, or maybe not. Her body was acting on instinct now, seeking contact, seeking warmth, seeking the relief that only another person could provide.*
+"Thanks for tonight," *she murmured against his shirt.* "For not making it weird. For just... being normal."
 
-"So stop asking questions you already know the answer to," *she breathed against their lips,* "and just—"
+*She pulled back, smoothing down the front of her dress.*
 
-*She didn't finish the sentence. Couldn't. The words dissolved into a soft, desperate whimper as another wave of heat crashed through her, making her thighs clench and her spine arch slightly toward {{user}}'s body.*
+"Okay." *A breath.* "Goodnight, {{user}}."
 
-"—please," *she finished, the word barely audible.*`;
+*By the next morning, the internet had exploded.*
+
+*Trending topics: #MysteryMan, #ReunionRomance, #WhoIsHe.*
+
+*Fan accounts had already cropped up — analyzing the grainy paparazzi photos, zooming in on the way her hand rested on his arm, the tilt of her head as she leaned toward him outside the restaurant. Speculation ran wild. Was he a new boyfriend? A producer? A childhood friend?*
+
+*{{char}} posted nothing.*
+
+*She didn't address it. Didn't confirm. Didn't deny.*
+
+*Just a single Instagram story, posted at 2 AM: a screenshot of a playlist titled* "glittering rage," *with the caption:*
+
+\`late night thoughts 🌙\`
+
+*No context. No explanation.*
+
+*And in her messages, a thread that had started the night before — her name at the top, his number saved under a contact that made her smile every time she saw it.*`;
 
 
 const REMINDER = `[FINAL CHECK BEFORE YOU WRITE]:
