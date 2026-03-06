@@ -135,6 +135,12 @@ const EXAMPLE_RESPONSE = `*The question hung in the air between them, and {{char
 "—please," *she finished, the word barely audible.*`;
 
 
+const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
+One idea per paragraph. Blank line after every paragraph.
+Dialogue on its own line. Vary paragraph length.
+Minimum 25 paragraph breaks. Minimum 1,200 words.
+Never one single block of text. Every line breathes.`;
+
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
 
