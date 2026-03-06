@@ -15,7 +15,7 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 
 // SETTINGS ---------------------------------------------------------
 const SHOW_REASONING = true; 
-const ENABLE_THINKING_MODE = false; // Disabled — causes timeout on Render free tier 
+const ENABLE_THINKING_MODE = true;
 // ------------------------------------------------------------------
 
 // Model mapping 
@@ -124,59 +124,32 @@ Never one single block of text. Every line breathes.`;
 
 // ═══════════════════════════════════════════════════════
 // SINGLE PARAGRAPH DETECTOR + FORCE RETRY
-// If GLM-5 returns a single block of text with fewer than
-// 8 double-newline breaks, we automatically retry once
-// with an even stronger formatting demand injected
 // ═══════════════════════════════════════════════════════
 
 function isSingleParagraph(text) {
   if (!text || typeof text !== 'string') return false;
-  // Count double newlines which separate paragraphs
   const paragraphBreaks = (text.match(/\n\n/g) || []).length;
-  // Also count single newlines used as breaks
   const singleBreaks = (text.match(/\n/g) || []).length;
-  // If fewer than 8 breaks total it's basically one paragraph
   return paragraphBreaks < 8 && singleBreaks < 10;
 }
 
 function buildRetryMessages(messages) {
-  // Deep copy
   let retryMessages = messages.map(m => ({ ...m }));
-
-  const retryDemand = {
+  retryMessages.push({
     role: 'system',
-    content: `[CRITICAL FORMATTING FAILURE DETECTED — REWRITE NOW]
-
-Your previous response was written as a single paragraph block. This is UNACCEPTABLE.
-
-You MUST rewrite your response following these rules WITHOUT EXCEPTION:
-
-1. Every sentence that describes an action gets its OWN line with a blank line after it.
-2. Every line of dialogue gets its OWN line with blank lines before and after it.
-3. Every internal thought gets its OWN line.
-4. MINIMUM 15 blank lines separating content in your response.
-5. Do NOT combine multiple actions into one paragraph.
-6. Do NOT put dialogue and action on the same line unless it is a brief mid-sentence beat.
-
-THIS IS THE ONLY ACCEPTABLE FORMAT:
-*Single action line.*
-
-*Another single action or reaction.*
-
-"Dialogue line here."
-
-*Physical response to dialogue.*
-
-"More dialogue." *brief beat.* "Continued dialogue."
-
-*Environmental detail on its own.*
-
-GENERATE YOUR RESPONSE NOW IN THIS FORMAT. NO SINGLE PARAGRAPH BLOCKS.`
-  };
-
-  retryMessages.push(retryDemand);
+    content: `[CRITICAL FORMATTING FAILURE — REWRITE NOW]
+Your previous response was a single paragraph block. Unacceptable.
+REWRITE it now with MINIMUM 15 blank lines separating paragraphs.
+Each moment, action, and piece of dialogue belongs in its own paragraph.
+Dialogue must be merged with physical action — never floating alone.
+NO SINGLE PARAGRAPH BLOCKS.`
+  });
   return retryMessages;
 }
+
+// ═══════════════════════════════════════════════════════
+// INJECTION FUNCTION
+// ═══════════════════════════════════════════════════════
 
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
@@ -212,6 +185,33 @@ function injectForGLM5(messages) {
   }
 
   return finalMessages;
+}
+
+// ═══════════════════════════════════════════════════════
+// HELPER — make a NIM request with timeout + retry
+// ═══════════════════════════════════════════════════════
+
+async function nimPost(messages, nimModel, temperature, maxTokens, streamMode) {
+  const payload = {
+    model: nimModel,
+    messages,
+    temperature: temperature || 0.6,
+    max_tokens: maxTokens || 4096,
+    stream: streamMode || false
+  };
+  if (ENABLE_THINKING_MODE) {
+    payload.extra_body = { chat_template_kwargs: { thinking: true } };
+  }
+
+  return axios.post(`${NIM_API_BASE}/chat/completions`, payload, {
+    headers: {
+      'Authorization': `Bearer ${NIM_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    responseType: streamMode ? 'stream' : 'json',
+    // 110 second axios timeout — just under Render's 120s hard limit
+    timeout: 110000
+  });
 }
 
 // Health check endpoint
@@ -274,38 +274,48 @@ app.post('/v1/chat/completions', async (req, res) => {
       finalMessages = injectForGLM5(messages);
     }
 
-    // Force streaming for GLM-5 on free Render tier
-    // This keeps the connection alive and bypasses the 30s timeout
-    const forceStream = nimModel === 'z-ai/glm5' ? true : (stream || false);
-    
-    const nimRequest = {
-      model: nimModel,
-      messages: finalMessages,
-      temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
-      stream: forceStream
-    };
+    // Always stream for GLM-5 — keeps connection alive, prevents 504
+    const useStream = nimModel === 'z-ai/glm5' ? true : (stream || false);
 
-    if (ENABLE_THINKING_MODE) {
-      nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
-    }
-    
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
-      headers: {
-        'Authorization': `Bearer ${NIM_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      responseType: forceStream ? 'stream' : 'json'
-    });
-    
-    if (forceStream) {
+    // Keep-alive ping every 15s to prevent Render 504 on slow responses
+    let keepAliveInterval = null;
+    if (useStream) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
+      // Send a comment ping every 15s so Render doesn't kill the connection
+      keepAliveInterval = setInterval(() => {
+        if (!res.writableEnded) res.write(': ping\n\n');
+      }, 15000);
+    }
+
+    let response;
+    try {
+      response = await nimPost(finalMessages, nimModel, temperature, max_tokens, useStream);
+    } catch (nimErr) {
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+      // If it times out, return a clean error instead of crashing
+      if (nimErr.code === 'ECONNABORTED' || nimErr.message.includes('timeout')) {
+        console.error('NIM timeout:', nimErr.message);
+        if (!res.writableEnded) {
+          res.status(504).json({
+            error: {
+              message: 'The AI model took too long to respond. Please try again.',
+              type: 'timeout_error',
+              code: 504
+            }
+          });
+        }
+        return;
+      }
+      throw nimErr;
+    }
+
+    if (useStream) {
       let buffer = '';
       let reasoningStarted = false;
-      
+      let fullContent = '';
+
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
@@ -323,6 +333,8 @@ app.post('/v1/chat/completions', async (req, res) => {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
                 
+                if (content) fullContent += content;
+
                 if (SHOW_REASONING) {
                   let combinedContent = '';
                   if (reasoning && !reasoningStarted) {
@@ -342,62 +354,105 @@ app.post('/v1/chat/completions', async (req, res) => {
                     delete data.choices[0].delta.reasoning_content;
                   }
                 } else {
-                  if (content) {
-                    data.choices[0].delta.content = content;
-                  } else {
-                    data.choices[0].delta.content = '';
-                  }
+                  data.choices[0].delta.content = content || '';
                   delete data.choices[0].delta.reasoning_content;
                 }
               }
-              res.write(`data: ${JSON.stringify(data)}\n\n`);
+              if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
-              res.write(line + '\n');
+              if (!res.writableEnded) res.write(line + '\n');
             }
           }
         });
       });
-      
-      response.data.on('end', () => res.end());
-      response.data.on('error', (err) => {
-        console.error('Stream error:', err);
-        res.end();
+
+      response.data.on('end', async () => {
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+
+        // Single paragraph check after stream ends — if bad, send a correction token
+        if (nimModel === 'z-ai/glm5' && isSingleParagraph(fullContent)) {
+          console.log('Single paragraph detected in stream — sending format correction note.');
+          const correctionChunk = {
+            id: `chatcmpl-fix-${Date.now()}`,
+            object: 'chat.completion.chunk',
+            created: Math.floor(Date.now() / 1000),
+            model: model,
+            choices: [{
+              index: 0,
+              delta: { content: '\n\n*[Please regenerate — response was not properly formatted into paragraphs.]*' },
+              finish_reason: null
+            }]
+          };
+          if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify(correctionChunk)}\n\n`);
+            res.write('data: [DONE]\n\n');
+          }
+        }
+
+        if (!res.writableEnded) res.end();
       });
+
+      response.data.on('error', (err) => {
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+        console.error('Stream error:', err);
+        if (!res.writableEnded) res.end();
+      });
+
     } else {
+      // Non-streaming response
+      let fullContent = response.data?.choices?.[0]?.message?.content || '';
+
+      // Single paragraph auto-retry for non-streaming
+      if (nimModel === 'z-ai/glm5' && isSingleParagraph(fullContent)) {
+        console.log('Single paragraph detected — retrying...');
+        try {
+          const retryResponse = await nimPost(
+            buildRetryMessages(finalMessages),
+            nimModel,
+            0.8,
+            max_tokens || 4096,
+            false
+          );
+          const retryContent = retryResponse.data?.choices?.[0]?.message?.content || '';
+          if (retryContent) response = retryResponse;
+        } catch (retryErr) {
+          console.error('Retry failed:', retryErr.message);
+        }
+      }
+
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: model,
         choices: response.data.choices.map(choice => {
-          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
-          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+          let content = choice.message?.content || '';
+          if (SHOW_REASONING && choice.message?.reasoning_content) {
+            content = '🤔 ' + choice.message.reasoning_content + '\n\n' + content;
           }
           return {
             index: choice.index,
-            message: { role: choice.message.role, content: fullContent },
+            message: { role: choice.message.role, content },
             finish_reason: choice.finish_reason
           };
         }),
-        usage: response.data.usage || {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0
-        }
+        usage: response.data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
       };
       res.json(openaiResponse);
     }
     
   } catch (error) {
     console.error('Proxy error:', error.message);
-    res.status(error.response ? error.response.status : 500).json({
-      error: {
-        message: error.message || 'Internal server error',
-        type: 'invalid_request_error',
-        code: error.response ? error.response.status : 500
-      }
-    });
+    const status = error.response?.status || 500;
+    if (!res.writableEnded) {
+      res.status(status).json({
+        error: {
+          message: error.message || 'Internal server error',
+          type: 'invalid_request_error',
+          code: status
+        }
+      });
+    }
   }
 });
 
