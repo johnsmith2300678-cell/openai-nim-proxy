@@ -151,6 +151,44 @@ Minimum 1,200 words. Count them.
 If your response is one block of text — delete it and start over.
 Every. Line. Breathes.`;
 
+
+// ═══════════════════════════════════════════════════
+// GLM-5 RESPONSE POST-PROCESSOR
+// Automatically reformats single-paragraph responses
+// into proper multi-paragraph format
+// This runs AFTER GLM-5 generates, guaranteeing format
+// ═══════════════════════════════════════════════════
+function reformatResponse(text) {
+  if (!text) return text;
+
+  let result = text;
+
+  // Add blank line before dialogue that follows action beats
+  result = result.replace(/(\*[^*]+\*)\s*(")/g, '$1\n\n$2');
+
+  // Add blank line after dialogue that is followed by action beats
+  result = result.replace(/(")(\s*)(\*)/g, '$1\n\n$3');
+
+  // Add blank line after closing action beat followed by new sentence or dialogue
+  result = result.replace(/(\*)\s+([A-Z"])/g, '$1\n\n$2');
+
+  // Split paragraphs that are too long (over 200 chars and not dialogue)
+  result = result.split('\n\n').map(para => {
+    para = para.trim();
+    if (para.length < 200) return para;
+    if (para.startsWith('"')) return para;
+
+    // Split at sentence boundaries - period/!/? followed by space and capital
+    return para.replace(/([.!?])\s+([A-Z*"])/g, '$1\n\n$2');
+  }).join('\n\n');
+
+  // Clean up 3+ newlines down to 2
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result.trim();
+}
+
+
 function injectForGLM5(messages) {
   // Deep copy messages
   let msgs = messages.map(m => ({ ...m }));
@@ -300,6 +338,10 @@ app.post('/v1/chat/completions', async (req, res) => {
           let fullContent = choice.message?.content || '';
           if (SHOW_REASONING && choice.message?.reasoning_content) {
             fullContent = ' \n' + choice.message.reasoning_content + ' \n\n' + fullContent;
+          }
+          // Post-process GLM-5 responses to fix single paragraph issue
+          if (nimModel === 'z-ai/glm5') {
+            fullContent = reformatResponse(fullContent);
           }
           return { index: choice.index, message: { role: choice.message.role, content: fullContent }, finish_reason: choice.finish_reason };
         }),
