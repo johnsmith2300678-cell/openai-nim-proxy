@@ -157,20 +157,34 @@ function injectForGLM5(messages) {
     };
     const before = finalMessages.slice(0, lastIdx + 1);
     const after = finalMessages.slice(lastIdx + 1);
+    // Append reminder to the last user message so array ends on user role
+    const lastUserIdx1 = [...before, ...after].reduce((acc, m, i) => m.role === 'user' ? i : acc, -1);
+    const combined1 = [...before, ...after];
+    if (lastUserIdx1 !== -1) {
+      combined1[lastUserIdx1] = {
+        role: 'user',
+        content: combined1[lastUserIdx1].content + '\n\n' + REMINDER
+      };
+    }
+    const before1 = combined1.slice(0, lastIdx + 1);
+    const after1 = combined1.slice(lastIdx + 1);
     finalMessages = [
-      ...before,
+      ...before1,
       { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
       { role: 'assistant', content: EXAMPLE_RESPONSE },
-      ...after,
-      { role: 'system', content: REMINDER }
+      ...after1
     ];
   } else {
+    // Append reminder to last user message
+    const msgsWithReminder = messages.map((m, i, arr) => {
+      const isLastUser = m.role === 'user' && arr.slice(i+1).every(x => x.role !== 'user');
+      return isLastUser ? { ...m, content: m.content + '\n\n' + REMINDER } : m;
+    });
     finalMessages = [
       { role: 'system', content: FORMATTING_RULES },
       { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
       { role: 'assistant', content: EXAMPLE_RESPONSE },
-      ...messages,
-      { role: 'system', content: REMINDER }
+      ...msgsWithReminder
     ];
   }
 
