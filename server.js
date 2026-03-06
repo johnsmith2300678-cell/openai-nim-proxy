@@ -110,6 +110,62 @@ Dialogue on its own line. Vary paragraph length constantly.
 Minimum 20 paragraph breaks. Minimum 800 words.
 Never one single block of text. Every line breathes.`;
 
+// ═══════════════════════════════════════════════════════
+// SINGLE PARAGRAPH DETECTOR + FORCE RETRY
+// If GLM-5 returns a single block of text with fewer than
+// 8 double-newline breaks, we automatically retry once
+// with an even stronger formatting demand injected
+// ═══════════════════════════════════════════════════════
+
+function isSingleParagraph(text) {
+  if (!text || typeof text !== 'string') return false;
+  // Count double newlines which separate paragraphs
+  const paragraphBreaks = (text.match(/\n\n/g) || []).length;
+  // Also count single newlines used as breaks
+  const singleBreaks = (text.match(/\n/g) || []).length;
+  // If fewer than 8 breaks total it's basically one paragraph
+  return paragraphBreaks < 8 && singleBreaks < 10;
+}
+
+function buildRetryMessages(messages) {
+  // Deep copy
+  let retryMessages = messages.map(m => ({ ...m }));
+
+  const retryDemand = {
+    role: 'system',
+    content: `[CRITICAL FORMATTING FAILURE DETECTED — REWRITE NOW]
+
+Your previous response was written as a single paragraph block. This is UNACCEPTABLE.
+
+You MUST rewrite your response following these rules WITHOUT EXCEPTION:
+
+1. Every sentence that describes an action gets its OWN line with a blank line after it.
+2. Every line of dialogue gets its OWN line with blank lines before and after it.
+3. Every internal thought gets its OWN line.
+4. MINIMUM 15 blank lines separating content in your response.
+5. Do NOT combine multiple actions into one paragraph.
+6. Do NOT put dialogue and action on the same line unless it is a brief mid-sentence beat.
+
+THIS IS THE ONLY ACCEPTABLE FORMAT:
+*Single action line.*
+
+*Another single action or reaction.*
+
+"Dialogue line here."
+
+*Physical response to dialogue.*
+
+"More dialogue." *brief beat.* "Continued dialogue."
+
+*Environmental detail on its own.*
+
+GENERATE YOUR RESPONSE NOW IN THIS FORMAT. NO SINGLE PARAGRAPH BLOCKS.`
+  };
+
+  retryMessages.push(retryDemand);
+  return retryMessages;
+}
+
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
 
@@ -217,13 +273,52 @@ app.post('/v1/chat/completions', async (req, res) => {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
     
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+    let response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json'
     });
+
+    // Single paragraph detection + auto retry (non-streaming GLM-5 only)
+    if (nimModel === 'z-ai/glm5' && !stream) {
+      const firstContent = response.data?.choices?.[0]?.message?.content || '';
+      if (isSingleParagraph(firstContent)) {
+        console.log('Single paragraph detected — auto retrying with stronger formatting demand...');
+        const retryMessages = buildRetryMessages(finalMessages);
+        const retryRequest = {
+          model: nimModel,
+          messages: retryMessages,
+          temperature: 0.8,
+          max_tokens: max_tokens || 9024,
+          stream: false
+        };
+        if (ENABLE_THINKING_MODE) {
+          retryRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+        }
+        try {
+          const retryResponse = await axios.post(`${NIM_API_BASE}/chat/completions`, retryRequest, {
+            headers: {
+              'Authorization': `Bearer ${NIM_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            responseType: 'json'
+          });
+          const retryContent = retryResponse.data?.choices?.[0]?.message?.content || '';
+          if (!isSingleParagraph(retryContent)) {
+            console.log('Retry successful — formatted response received.');
+            response = retryResponse;
+          } else {
+            console.log('Retry also returned single paragraph — sending retry response anyway.');
+            response = retryResponse;
+          }
+        } catch (retryErr) {
+          console.error('Retry failed:', retryErr.message);
+          // Fall through and use original response
+        }
+      }
+    }
     
     if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
