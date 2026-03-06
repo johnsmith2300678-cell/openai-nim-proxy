@@ -142,53 +142,44 @@ Minimum 25 paragraph breaks. Minimum 1,200 words.
 Never one single block of text. Every line breathes.`;
 
 function injectForGLM5(messages) {
-  let finalMessages = messages.map(m => ({ ...m }));
+  // Deep copy messages
+  let msgs = messages.map(m => ({ ...m }));
 
-  const systemIndexes = finalMessages.reduce((acc, m, i) => {
-    if (m.role === 'system') acc.push(i);
-    return acc;
-  }, []);
-
-  if (systemIndexes.length > 0) {
-    const lastIdx = systemIndexes[systemIndexes.length - 1];
-    finalMessages[lastIdx] = {
+  // Step 1: Find first system message and append formatting rules to it
+  // If none exists, insert one at the very start
+  const firstSysIdx = msgs.findIndex(m => m.role === 'system');
+  if (firstSysIdx !== -1) {
+    msgs[firstSysIdx] = {
       role: 'system',
-      content: finalMessages[lastIdx].content + '\n\n' + FORMATTING_RULES
+      content: msgs[firstSysIdx].content + '\n\n' + FORMATTING_RULES
     };
-    const before = finalMessages.slice(0, lastIdx + 1);
-    const after = finalMessages.slice(lastIdx + 1);
-    // Append reminder to the last user message so array ends on user role
-    const lastUserIdx1 = [...before, ...after].reduce((acc, m, i) => m.role === 'user' ? i : acc, -1);
-    const combined1 = [...before, ...after];
-    if (lastUserIdx1 !== -1) {
-      combined1[lastUserIdx1] = {
-        role: 'user',
-        content: combined1[lastUserIdx1].content + '\n\n' + REMINDER
-      };
-    }
-    const before1 = combined1.slice(0, lastIdx + 1);
-    const after1 = combined1.slice(lastIdx + 1);
-    finalMessages = [
-      ...before1,
-      { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
-      { role: 'assistant', content: EXAMPLE_RESPONSE },
-      ...after1
-    ];
   } else {
-    // Append reminder to last user message
-    const msgsWithReminder = messages.map((m, i, arr) => {
-      const isLastUser = m.role === 'user' && arr.slice(i+1).every(x => x.role !== 'user');
-      return isLastUser ? { ...m, content: m.content + '\n\n' + REMINDER } : m;
-    });
-    finalMessages = [
-      { role: 'system', content: FORMATTING_RULES },
-      { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
-      { role: 'assistant', content: EXAMPLE_RESPONSE },
-      ...msgsWithReminder
-    ];
+    msgs.unshift({ role: 'system', content: FORMATTING_RULES });
   }
 
-  return finalMessages;
+  // Step 2: Find the last user message and append reminder to it
+  // This ensures the array never ends with a system message
+  let lastUserIdx = -1;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].role === 'user') { lastUserIdx = i; break; }
+  }
+  if (lastUserIdx !== -1) {
+    msgs[lastUserIdx] = {
+      role: 'user',
+      content: msgs[lastUserIdx].content + '\n\n' + REMINDER
+    };
+  }
+
+  // Step 3: Insert example pair right after the system message
+  // so GLM-5 sees the style before the real conversation
+  const sysIdx = msgs.findIndex(m => m.role === 'system');
+  const insertAt = sysIdx + 1;
+  msgs.splice(insertAt, 0,
+    { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
+    { role: 'assistant', content: EXAMPLE_RESPONSE }
+  );
+
+  return msgs;
 }
 
 app.get('/health', (req, res) => {
