@@ -5,15 +5,46 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware
+// FIX #1: Increased body size limit to 10mb — Lorebook + long chat history
+//         easily exceeds the default 100kb limit, causing 413 errors on Janitor AI
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
+// NVIDIA NIM API configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-const SHOW_REASONING = false;
-const ENABLE_THINKING_MODE = false;
+// SETTINGS ---------------------------------------------------------
+// Set to true to see the model's thought process in the reply
+const SHOW_REASONING = true;
 
+// Set to true to enable advanced thinking mode (GLM-5 only)
+const ENABLE_THINKING_MODE = true;
+
+// FIX #3: Axios timeout in ms — prevents silent hangs on Render free plan
+// Render drops idle connections; NIM can be slow on first token
+const AXIOS_TIMEOUT_MS = 120000; // 2 minutes
+// ------------------------------------------------------------------
+
+// Roleplay greeting dialogue for GLM-5 (Sabrina character)
+const ROLEPLAY_GREETING = `*Four months. One hundred and twenty-three days of texts that stretched into the early hours, voice notes slipped between flights and studio sessions, a whole private world built entirely out of words and timestamps. She'd memorized the rhythm of his replies—lowercase when he was tired, a specific emoji when he was pretending her jokes weren't funny. And now she was standing outside his door in a thrifted trench coat, a black wig that was already making her scalp itch, and sunglasses she absolutely did not need on an overcast afternoon. Marcus was parked three blocks away. Close enough. Far enough. She raised her knuckles and knocked—three times, quick and deliberate—and then her heart did something she had no name for while she waited.*
+
+*The door opened. Seeing him in person, after months of pixels and voice notes, landed somewhere between relief and vertigo.* "Hi." *It came out smaller than she'd planned. She cleared her throat, adjusted the sunglasses already slipping down her nose, and stepped inside before he could respond.* "Don't laugh at the wig. I already know."
+
+*She moved through the entryway like she was cataloguing it—warm, lived-in, coffee and laundry detergent, a couch that had clearly been sat on by a real person. Her fingers found the edge of the wig and she pulled it off without asking permission, shaking out her real hair with a long exhale and dropping the thing on his entryway table like it had personally wronged her.* "Okay. That's better." *She turned back to face him, smoothing her hair down.* "This is really nice, by the way. Cozy. I mean that."
+
+*She drifted further in, trailing her fingers along the back of the couch—throw pillow, remote, a stack of magazines—touching things like she needed proof they existed. There was something almost surreal about standing inside the physical space of someone she knew so well and not at all.* "I know your gym schedule," *she said, glancing back at him,* "I know you sleep on your stomach. I know you hate olives and you type in all lowercase when you're exhausted." *She paused, thumb pressing against the edge of the remote.* "But I don't know what your couch feels like. Or how it feels to just... be in the same room as you."
+
+*The admission landed heavier than she'd meant it to. She dropped onto the couch before it could settle too long in the air, pulling her legs up beneath her and grabbing the remote like she hadn't just said something honest.* "Show me what you were watching. I'm absolutely judging you." *The screen flickered on. Penguins. She stared at it for a full second before the laugh broke out of her, genuine and unguarded.* "Penguins? You were watching a penguin documentary?" *She clutched the remote to her chest, grinning up at him.* "Okay, that's actually kind of adorable. I completely take back everything I was about to say."
+
+*She patted the cushion beside her. When he sat, the couch shifted with his weight, and she was suddenly aware of the warmth of his arm almost against hers—different from the hug outside the restaurant, different from anything a screen could give her. She wasn't watching the penguins.* "You know what's crazy?" *Her voice had gone quieter without her meaning it to.* "I've talked to you more in the last four months than I've talked to almost anyone in years. And my friends keep asking why I'm always smiling at my phone." *A small, private laugh.* "I just tell them I'm reading nice comments. They have no idea."
+
+*The documentary played on. She let the silence stretch, let herself sink a little deeper into the cushions, let the strange soft realness of it settle around her. After a moment her head tilted sideways and came to rest gently against his shoulder.* "Can we just stay like this for a while?" *she murmured.* "Just... existing."
+
+*The penguins kept sliding. And for the first time in a long time, Sabrina felt like she was exactly where she was supposed to be.*`;
+
+// Model mapping
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
@@ -25,190 +56,10 @@ const MODEL_MAPPING = {
   'glm-5': 'z-ai/glm5'
 };
 
-// ═══════════════════════════════════════════════════════
-// GLM-5 INJECTION — FORMATTING RULES + EXAMPLE ONLY
-// No retries. No extra requests. One clean call.
-// ═══════════════════════════════════════════════════════
+// GLM-5 NIM model identifiers — gates thinking mode and greeting injection
+const GLM5_MODELS = ['glm-5', 'z-ai/glm5'];
 
-const FORMATTING_RULES = `[FORMATTING RULES — MANDATORY ON EVERY RESPONSE]
-
-THREE THINGS ARE STRICTLY FORBIDDEN:
-
-FORBIDDEN #1 — One giant wall of text that runs everything together with no paragraph breaks:
-*His palm settled against her cheek. Sabrina's breath caught.* "It's okay to be soft." *The words sank into her. She stared at him. Her lips parted. Four months of late-night calls and somehow this was the moment that undid her.* "You—" *Her voice cracked.* "You can't just say things like that." *She laughed but it came out wet.* "I don't know how to do this."
-THIS IS BANNED. No matter how emotional the scene is. No exceptions.
-
-FORBIDDEN #2 — Dialogue sitting completely alone on its own isolated line with nothing around it:
-"Hi."
-"Promise me."
-"You can't just say things like that."
-THIS IS BANNED. Dialogue never floats alone.
-
-FORBIDDEN #3 — Long unbroken speeches where the character talks for many sentences without any action, breath, or physical beat between them:
-"I've spent years performing. Years making sure no one sees too much. Years being exactly what people expect. And then you just sit there being kind. Being real. Not wanting anything from me except me being me. Do you know how terrifying that is?"
-THIS IS BANNED. Long speeches must be broken up with physical action paragraphs between them.
-
-WHAT IS REQUIRED:
-
-Every paragraph is a separate breath. Every paragraph has a blank line after it.
-
-Dialogue is always merged into the same paragraph as the physical action and feeling surrounding it:
-CORRECT: *She laughed, but it came out wet and broken.* "You can't just say things like that." *Her fingers tightened over his.*
-
-The character can speak multiple times in one paragraph when the words belong together:
-CORRECT: "And don't think I didn't notice you dodging the compliment." *Her smile softened, just a fraction.* "That's... actually kind of sweet. Annoyingly sweet."
-
-Short single line paragraphs land hard — use them:
-CORRECT: *Heat crept up her neck.*
-CORRECT: *Another tear fell.*
-CORRECT: *She stopped. Swallowed.*
-
-Long emotional moments must be broken into many separate paragraphs — one breath, one moment, one feeling at a time. The more emotional the scene, the MORE paragraph breaks it needs, not fewer.
-
-PARAGRAPH RULES:
-- Every paragraph has a blank line after it.
-- Vary length constantly — some paragraphs are one short punchy sentence, some are 3 to 5 sentences of rich layered description with dialogue woven in.
-- Never the same length twice in a row.
-- Never name emotions directly. Show them through the body.
-
-RESPONSE LENGTH:
-- Minimum 20 paragraph breaks per response.
-- Minimum 800 words. Emotional or intimate scenes minimum 1,000 words.
-
-[WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
-
-const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled in her chest.*
-
-*She stared at {{user}}. The playful retort she'd been forming — the one sitting ready on the tip of her tongue — dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
-
-*Heat crept up her neck.*
-
-*She laughed, but it came out uneven. Her fingers tightened around the stem of her champagne flute. The citrus of her perfume seemed heavier now, warmer against the close air between them. She shifted her weight, one heel clicking against the polished floor as she crossed her arms beneath her chest — a defensive posture she didn't entirely mean to take.* "Okay, that's—" *She exhaled, her jaw tightening as she forced the flush down.* "That's a bold thing to say to someone you haven't seen in years."
-
-*Her eyes met {{user}}'s. Held there. The DJ had faded into background noise. The couples swaying in the center of the gym, the clusters of former classmates trading stories, the clatter of the buffet — none of it registered. Just {{user}}. Standing there with that quiet confidence she couldn't quite pin down.*
-
-*She uncrossed her arms. Slowly. Her bracelets jingled as her hand dropped to her hip.*
-
-*The word came out softer than she intended.* "Fine." *She cleared her throat, straightening her spine, lifting her chin.* "You want to know what I think?"
-
-*She stepped closer. Close enough that the toe of her heel nearly touched {{user}}'s shoe. Close enough that she had to tilt her head back to hold their gaze, the silver of her dress catching the overhead lights like scattered stardust.*
-
-*Her voice dropped, barely above a murmur.* "I think you're dangerous." *A pause. Her eyes moved over his face, searching.* "Not because of the muscles. Not because of the—" *She gestured vaguely.* "—whatever this is."
-
-*Her eyes searched {{user}}'s face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
-
-"I think you're dangerous because you actually believe what you're saying. And that makes me..." *She trailed off, her tongue pressing against the inside of her cheek.* "...very curious."
-
-*The confession sat in the air between them, heavier than she'd meant it to be.*
-
-*Behind her, someone called her name — a classmate waving from near the punch bowl. {{char}} didn't turn. Her gaze stayed fixed on {{user}}, her chin lifted in challenge.* "So." *A beat. Quiet and loaded.* "What are you going to do about that?"`;
-
-const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
-Dialogue is ALWAYS merged into paragraphs with action and feeling.
-NEVER dialogue alone on its own line.
-NEVER one single block of text.
-{{char}} can speak multiple times in one paragraph when words belong together.
-Blank line after every paragraph. Vary paragraph length.
-Minimum 20 paragraph breaks. Minimum 800 words.`;
-
-function injectForGLM5(messages) {
-  let finalMessages = messages.map(m => ({ ...m }));
-
-  const systemIndexes = finalMessages.reduce((acc, m, i) => {
-    if (m.role === 'system') acc.push(i);
-    return acc;
-  }, []);
-
-  if (systemIndexes.length > 0) {
-    const lastIdx = systemIndexes[systemIndexes.length - 1];
-    finalMessages[lastIdx] = {
-      role: 'system',
-      content: finalMessages[lastIdx].content + '\n\n' + FORMATTING_RULES
-    };
-    const before = finalMessages.slice(0, lastIdx + 1);
-    const after = finalMessages.slice(lastIdx + 1);
-    finalMessages = [
-      ...before,
-      { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
-      { role: 'assistant', content: EXAMPLE_RESPONSE },
-      ...after,
-      { role: 'system', content: REMINDER }
-    ];
-  } else {
-    finalMessages = [
-      { role: 'system', content: FORMATTING_RULES },
-      { role: 'user', content: '[EXAMPLE — WRITE EVERY RESPONSE EXACTLY LIKE THIS]' },
-      { role: 'assistant', content: EXAMPLE_RESPONSE },
-      ...messages,
-      { role: 'system', content: REMINDER }
-    ];
-  }
-
-  return finalMessages;
-}
-
-// ═══════════════════════════════════════════════════════
-// SERVER-SIDE REFORMATTER
-// Runs after GLM-5 responds. Breaks walls of text into
-// proper paragraphs. Never touches the reasoning block.
-// ═══════════════════════════════════════════════════════
-
-function separateReasoningFromContent(text) {
-  const reasoningMarker = '🤔 ';
-  if (!text.startsWith(reasoningMarker)) {
-    return { reasoning: '', content: text };
-  }
-  const doubleNewline = text.indexOf('\n\n');
-  if (doubleNewline === -1) {
-    return { reasoning: text, content: '' };
-  }
-  return {
-    reasoning: text.substring(0, doubleNewline),
-    content: text.substring(doubleNewline + 2)
-  };
-}
-
-function reformatContent(text) {
-  if (!text || typeof text !== 'string') return text;
-  const existingBreaks = (text.match(/\n\n/g) || []).length;
-  if (existingBreaks >= 10) return text;
-
-  let result = text;
-
-  // Break between closing italic and opening dialogue
-  result = result.replace(/(\*)\ +(")/g, '$1\n\n$2');
-  result = result.replace(/(\*)\s+(")/g, '$1\n\n$2');
-
-  // Break between closing dialogue and new italic starting with capital
-  result = result.replace(/([.!?'"])\s+\*([A-Z])/g, '$1\n\n*$2');
-
-  // Break between two italic blocks
-  result = result.replace(/(\*)\s+(\*[A-Z])/g, '$1\n\n$2');
-
-  // Split long italic blocks at sentence boundaries — only long next words
-  result = result.replace(/\*([^*]+)\*/g, (match, inner) => {
-    const split = inner.replace(/([.!?])\s+([A-Z][a-z]{10,})/g, (m, punct, nextWord) => {
-      return punct + '\n\n' + nextWord;
-    });
-    return '*' + split + '*';
-  });
-
-  result = result.replace(/\n{3,}/g, '\n\n');
-  result = result.trim();
-  return result;
-}
-
-function reformatGLM5Response(fullText) {
-  if (!fullText) return fullText;
-  const { reasoning, content } = separateReasoningFromContent(fullText);
-  const reformattedContent = reformatContent(content);
-  if (reasoning) {
-    return reasoning + '\n\n' + reformattedContent;
-  }
-  return reformattedContent;
-}
-
-// Health check
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -218,7 +69,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// List models
+// List models endpoint
 app.get('/v1/models', (req, res) => {
   const models = Object.keys(MODEL_MAPPING).map(model => ({
     id: model,
@@ -226,35 +77,107 @@ app.get('/v1/models', (req, res) => {
     created: Date.now(),
     owned_by: 'nvidia-nim-proxy'
   }));
-  res.json({ object: 'list', data: models });
+
+  res.json({
+    object: 'list',
+    data: models
+  });
 });
 
-// Chat completions
+// Helper: inject roleplay greeting for GLM-5 if no prior assistant message exists
+function injectRoleplayGreeting(messages, requestedModel) {
+  if (!GLM5_MODELS.includes(requestedModel)) return messages;
+
+  const hasAssistantMessage = messages.some(m => m.role === 'assistant');
+  if (hasAssistantMessage) return messages;
+
+  const systemMessages = messages.filter(m => m.role === 'system');
+  const nonSystemMessages = messages.filter(m => m.role !== 'system');
+
+  return [
+    ...systemMessages,
+    { role: 'assistant', content: ROLEPLAY_GREETING },
+    ...nonSystemMessages
+  ];
+}
+
+// Helper: flush any remaining SSE buffer content before closing stream
+function flushBuffer(buffer, res) {
+  if (!buffer || !buffer.trim()) return;
+  const lines = buffer.split('\n');
+  lines.forEach(line => {
+    if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+      try {
+        JSON.parse(line.slice(6));
+        res.write(line + '\n\n');
+      } catch (e) {
+        // skip malformed leftover chunk
+      }
+    }
+  });
+}
+
+// Chat completions endpoint
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
 
+    // FIX #4: Validate required fields — prevents TypeError crash when
+    //         Janitor AI sends a malformed or incomplete request body
+    if (!model || typeof model !== 'string') {
+      return res.status(400).json({
+        error: {
+          message: 'Missing or invalid "model" field in request body',
+          type: 'invalid_request_error',
+          code: 400
+        }
+      });
+    }
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        error: {
+          message: 'Missing or invalid "messages" field in request body',
+          type: 'invalid_request_error',
+          code: 400
+        }
+      });
+    }
+
+    // Smart model selection
     let nimModel = MODEL_MAPPING[model];
 
     if (!nimModel) {
       try {
-        await axios.post(`${NIM_API_BASE}/chat/completions`, {
-          model: model,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 1
-        }, {
-          headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-          validateStatus: (status) => status < 500
-        }).then(apiRes => {
-          if (apiRes.status >= 200 && apiRes.status < 300) nimModel = model;
-        });
-      } catch (e) {}
+        const verifyRes = await axios.post(
+          `${NIM_API_BASE}/chat/completions`,
+          {
+            model: model,
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 1
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${NIM_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            validateStatus: (status) => status < 500,
+            timeout: AXIOS_TIMEOUT_MS
+          }
+        );
+
+        if (verifyRes.status >= 200 && verifyRes.status < 300) {
+          nimModel = model;
+        }
+      } catch (e) {
+        // Ignore errors during verification
+      }
 
       if (!nimModel) {
-        const ml = model.toLowerCase();
-        if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b')) {
+        const modelLower = model.toLowerCase();
+        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
           nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b')) {
+        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
           nimModel = 'meta/llama-3.1-70b-instruct';
         } else {
           nimModel = model;
@@ -262,36 +185,43 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     }
 
-    let finalMessages = messages;
-    if (nimModel === 'z-ai/glm5') {
-      finalMessages = injectForGLM5(messages);
-    }
+    // Inject roleplay greeting for GLM-5 if applicable
+    const processedMessages = injectRoleplayGreeting(messages, model);
 
+    // Build the request payload
     const nimRequest = {
       model: nimModel,
-      messages: finalMessages,
+      messages: processedMessages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
+      max_tokens: max_tokens || 4096,
       stream: stream || false
     };
 
-    if (ENABLE_THINKING_MODE) {
+    // FIX #2: Only apply thinking mode to GLM-5 — sending extra_body to other
+    //         models (llama, nemotron, qwen, etc.) causes 400/422 errors on NIM
+    if (ENABLE_THINKING_MODE && GLM5_MODELS.includes(nimModel)) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
 
+    // Make request to NVIDIA NIM API
+    // FIX #3: Added timeout so Render free plan doesn't silently hang
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json',
-      timeout: 120000
+      timeout: AXIOS_TIMEOUT_MS
     });
 
     if (stream) {
+      // Handle streaming response
+      // X-Accel-Buffering: no — disables nginx proxy buffering on Render
+      // Without this, SSE chunks get batched instead of streaming live to Janitor AI
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
 
       let buffer = '';
       let reasoningStarted = false;
@@ -302,72 +232,90 @@ app.post('/v1/chat/completions', async (req, res) => {
         buffer = lines.pop() || '';
 
         lines.forEach(line => {
-          if (line.startsWith('data: ')) {
-            if (line.includes('[DONE]')) {
-              res.write(line + '\n');
-              return;
-            }
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.choices && data.choices[0] && data.choices[0].delta) {
-                const reasoning = data.choices[0].delta.reasoning_content;
-                const content = data.choices[0].delta.content;
+          if (!line.startsWith('data: ')) return;
 
-                if (SHOW_REASONING) {
-                  let combinedContent = '';
-                  if (reasoning && !reasoningStarted) {
-                    combinedContent = '🤔 ' + reasoning;
-                    reasoningStarted = true;
-                  } else if (reasoning) {
-                    combinedContent = reasoning;
-                  }
-                  if (content && reasoningStarted) {
-                    combinedContent += '\n\n' + content;
-                    reasoningStarted = false;
-                  } else if (content) {
-                    combinedContent += content;
-                  }
-                  if (combinedContent) {
-                    data.choices[0].delta.content = combinedContent;
-                    delete data.choices[0].delta.reasoning_content;
-                  }
-                } else {
-                  data.choices[0].delta.content = content || '';
+          // FIX #5: SSE spec requires \n\n after every event frame
+          //         Using only \n on [DONE] causes Janitor AI stream parsers to hang
+          if (line.includes('[DONE]')) {
+            res.write('data: [DONE]\n\n');
+            return;
+          }
+
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.choices && data.choices[0] && data.choices[0].delta) {
+              const reasoning = data.choices[0].delta.reasoning_content;
+              const content = data.choices[0].delta.content;
+
+              if (SHOW_REASONING) {
+                let combinedContent = '';
+
+                if (reasoning && !reasoningStarted) {
+                  combinedContent = '🤔 ' + reasoning;
+                  reasoningStarted = true;
+                } else if (reasoning) {
+                  combinedContent = reasoning;
+                }
+
+                if (content && reasoningStarted) {
+                  combinedContent += '\n\n' + content;
+                  reasoningStarted = false;
+                } else if (content) {
+                  combinedContent += content;
+                }
+
+                if (combinedContent) {
+                  data.choices[0].delta.content = combinedContent;
                   delete data.choices[0].delta.reasoning_content;
                 }
+              } else {
+                data.choices[0].delta.content = content || '';
+                delete data.choices[0].delta.reasoning_content;
               }
-              res.write(`data: ${JSON.stringify(data)}\n\n`);
-            } catch (e) {
-              res.write(line + '\n');
             }
+            res.write('data: ' + JSON.stringify(data) + '\n\n');
+          } catch (e) {
+            res.write(line + '\n\n');
           }
         });
       });
 
-      response.data.on('end', () => res.end());
-      response.data.on('error', (err) => {
-        console.error('Stream error:', err);
+      response.data.on('end', () => {
+        // Flush any remaining buffered content before closing
+        flushBuffer(buffer, res);
         res.end();
       });
 
+      response.data.on('error', (err) => {
+        console.error('Stream error:', err);
+        // FIX #6: Stream may already be open — check before trying to set headers
+        if (!res.headersSent) {
+          res.status(500).json({ error: { message: err.message, type: 'stream_error', code: 500 } });
+        } else {
+          res.end();
+        }
+      });
+
     } else {
+      // Handle non-streaming response
       const openaiResponse = {
-        id: `chatcmpl-${Date.now()}`,
+        id: 'chatcmpl-' + Date.now(),
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: model,
         choices: response.data.choices.map(choice => {
-          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
+          let fullContent = (choice.message && choice.message.content) ? choice.message.content : '';
+
           if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
             fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
           }
-          // Apply reformatter for GLM-5 — keeps reasoning block intact, breaks content into paragraphs
-          if (nimModel === 'z-ai/glm5') {
-            fullContent = reformatGLM5Response(fullContent);
-          }
+
           return {
             index: choice.index,
-            message: { role: choice.message.role, content: fullContent },
+            message: {
+              role: choice.message.role,
+              content: fullContent
+            },
             finish_reason: choice.finish_reason
           };
         }),
@@ -377,11 +325,19 @@ app.post('/v1/chat/completions', async (req, res) => {
           total_tokens: 0
         }
       };
+
       res.json(openaiResponse);
     }
 
   } catch (error) {
     console.error('Proxy error:', error.message);
+
+    // FIX #6: If streaming already started, headers are already sent
+    //         Calling res.status() again crashes the Node process
+    if (res.headersSent) {
+      return res.end();
+    }
+
     res.status(error.response ? error.response.status : 500).json({
       error: {
         message: error.message || 'Internal server error',
@@ -392,10 +348,11 @@ app.post('/v1/chat/completions', async (req, res) => {
   }
 });
 
+// Catch-all
 app.all('*', (req, res) => {
   res.status(404).json({
     error: {
-      message: `Endpoint ${req.path} not found`,
+      message: 'Endpoint ' + req.path + ' not found',
       type: 'invalid_request_error',
       code: 404
     }
@@ -403,8 +360,8 @@ app.all('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`OpenAI to NVIDIA NIM Proxy running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Reasoning: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`Thinking: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
+  console.log('OpenAI to NVIDIA NIM Proxy running on port ' + PORT);
+  console.log('Health check: http://localhost:' + PORT + '/health');
+  console.log('Reasoning display: ' + (SHOW_REASONING ? 'ENABLED' : 'DISABLED'));
+  console.log('Thinking mode: ' + (ENABLE_THINKING_MODE ? 'ENABLED (GLM-5 only)' : 'DISABLED'));
 });
