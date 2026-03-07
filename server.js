@@ -5,20 +5,16 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// NVIDIA NIM API configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// SETTINGS ---------------------------------------------------------
-const SHOW_REASONING = true; 
+// SETTINGS
+const SHOW_REASONING = true;
 const ENABLE_THINKING_MODE = true;
-// ------------------------------------------------------------------
 
-// Model mapping 
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
@@ -31,7 +27,7 @@ const MODEL_MAPPING = {
 };
 
 // ═══════════════════════════════════════════════════════
-// GLM-5 FORMATTING INJECTION
+// GLM-5 DIALOGUE INJECTION
 // ═══════════════════════════════════════════════════════
 
 const FORMATTING_RULES = `[FORMATTING RULES — MANDATORY ON EVERY SINGLE RESPONSE]
@@ -69,8 +65,6 @@ SHOW DON'T TELL:
 - Never name emotions. Show them in the body.
 - WRONG: She felt nervous.
 - RIGHT: Her fingers found the edge of the wig, hesitating.
-- WRONG: She was happy.
-- RIGHT: She laughed before she meant to, the sound escaping before she could catch it.
 
 RESPONSE LENGTH:
 - Minimum 20 paragraph breaks per response.
@@ -78,83 +72,38 @@ RESPONSE LENGTH:
 
 [WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
 
-const EXAMPLE_RESPONSE = `*Four months.*
+const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled in her chest.*
 
-*One hundred and twenty-three days of texts stretching into the early hours. Voice notes sent between flights, between meetings, between the strange gaps of a life lived in hotel rooms. {{char}} had memorized the rhythm of his replies — the way he typed in all lowercase when he was tired, the specific emoji he used when he was pretending not to laugh at something she'd said.*
+*She stared at {{user}}. The playful retort she'd been forming — the one sitting ready on the tip of her tongue — dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
 
-*And now she was standing outside his door.*
+*Heat crept up her neck.*
 
-*The disguise was almost comical — an oversized trench coat she'd thrifted and never worn publicly, a black wig that fell past her shoulders in waves she'd never choose for herself, oversized sunglasses obscuring half her face. Her knuckles grazed the wood. Three knocks. Quick. Deliberate. Then she waited, her heart doing something strange and unfamiliar in her chest — not stage fright, she knew stage fright — this was softer. More terrifying.*
+*She laughed, but it came out uneven. Her fingers tightened around the stem of her champagne flute. The citrus of her perfume seemed heavier now, warmer against the close air between them. She shifted her weight, one heel clicking against the polished floor as she crossed her arms beneath her chest — a defensive posture she didn't entirely mean to take. "Okay, that's—" She exhaled, her jaw tightening as she forced the flush down. "That's a bold thing to say to someone you haven't seen in years."*
 
-*The door swung open.*
+*Her eyes met {{user}}'s. Held there. The DJ had faded into background noise. The couples swaying in the center of the gym, the clusters of former classmates trading stories, the clatter of the buffet — none of it registered. Just {{user}}. Standing there with that quiet confidence she couldn't quite pin down.*
 
-*Seeing him in person after months of pixels and voice notes hit differently than she'd prepared for. The photos hadn't captured the way his eyes crinkled at the corners, or the slight tilt of his head when he was trying not to laugh. She cleared her throat. "Hi." The word came out smaller than she intended. She adjusted the sunglasses, which immediately started sliding.*
+*She uncrossed her arms. Slowly. Her bracelets jingled as her hand dropped to her hip.*
 
-*"Don't laugh at the wig," she added, already stepping past him without waiting for an invitation. "I know it's bad."*
+*She stepped closer. Close enough that the toe of her heel nearly touched {{user}}'s shoe. Close enough that she had to tilt her head back to hold their gaze, the silver of her dress catching the overhead lights like scattered stardust. "I think you're dangerous." Her voice dropped, barely above a murmur. "Not because of the muscles. Not because of the—" She gestured vaguely. "—whatever this is."*
 
-*Her eyes moved across the space — warm, lived-in, the kind of apartment that smelled like coffee and clean laundry. A couch that had actually been sat on. A TV paused mid-scene. Her fingers found the edge of the wig. "Can I—? This thing is suffocating me." She tugged it off without waiting for an answer, shaking out her real hair with a long, dramatic exhale and tossing it onto his entryway table like it had personally offended her.*
+*Her eyes searched {{user}}'s face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
 
-*"Okay." She smoothed her hair down, then looked at him. Really looked — the months of texting had built something between them, a whole architecture of inside jokes and confessions, but seeing him in person was different. He was solid. Real. She clasped her hands together and rocked back on her heels. "This is weird, right? In a good way. But weird."*
+*"I think you're dangerous because you actually believe what you're saying. And that makes me..." She trailed off, her tongue pressing against the inside of her cheek. "...very curious." The confession sat in the air between them, heavier than she'd meant it to be.*
 
-*She moved further into the apartment, her fingers trailing along the back of his couch as she walked, touching things like she needed to confirm they existed. A throw pillow. A remote. A stack of magazines. She turned back, gesturing vaguely. "I know your gym schedule. I know you sleep on your stomach. I know you hate olives." Her lips curved. Then she stopped. Swallowed. "But I don't know what your couch feels like. Or what you watch on TV. Or—" A pause, quieter. "—how it feels to just be in the same room as you."*
+*Behind her, someone called her name — a classmate waving from near the punch bowl. {{char}} didn't turn. Her gaze stayed fixed on {{user}}, her chin lifted in challenge. "And don't think I didn't notice you dodging the compliment by throwing one back at me." Her smile softened, just a fraction. "That's... actually kind of sweet. Annoyingly sweet."*
 
-*She dropped onto the couch before he could respond, pulling her legs up beneath her and grabbing the remote off the coffee table. "Show me what you were watching. I'm judging you."*
+*A beat. Quiet and loaded.*
 
-*The screen flickered to life. Penguins. She stared at it for a full second before bursting into laughter, clutching the remote to her chest. "Penguins? You were watching penguins?" She looked up at him, still grinning. "Okay, that's actually kind of adorable. I take back everything I was going to say."*
-
-*She patted the spot beside her. "Sit. I'm not watching penguins alone."*
-
-*When he settled next to her the couch dipped with his weight. She was hyperaware of it — the warmth radiating off his arm, the way his shoulder almost brushed hers. The documentary played in the background but she wasn't watching. Her head turned toward him, studying his profile in the soft TV light. "You know what's crazy?" Her voice had dropped. She pulled her knees tighter to her chest, resting her chin on top. "I've talked to you more in the past four months than I've talked to anyone in years. And I hadn't even seen you in person."*
-
-*She laughed softly — a small, private sound. "My friends keep asking why I'm smiling at my phone. I just tell them I'm reading nice comments." A beat, her smile softening. "They have no idea."*
-
-*The documentary shifted to penguins sliding across ice. She made a soft sound, half-laugh half-sigh, and glanced at him with something open in her expression that she didn't entirely mean to show. "This is nice. Really nice." She hesitated, then added: "Thanks for letting me come over. I know it's a lot. The whole—" She gestured at herself. "—thing."*
-
-*The silence stretched between them. Comfortable. Easy. She let herself sink deeper into the cushions, her voice dropping to barely a murmur. "Can we stay like this for a while? Just... existing?"*
-
-*She didn't wait for an answer. She just let her head tilt sideways, coming to rest gently against his shoulder.*
-
-*The penguins kept sliding.*
-
-*And for the first time in months, {{char}} felt like she was exactly where she was supposed to be.*`;
+*"So." Her chin lifted. "What are you going to do about that?"*`;
 
 const REMINDER = `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
 Write exactly like the example above.
 Dialogue is ALWAYS merged into paragraphs with action and feeling — NEVER on its own isolated line.
 {{char}} speaks multiple times in one paragraph when the words and feelings belong together.
 Every paragraph is one complete moment. Blank line after every paragraph.
-Vary paragraph length constantly — short punchy hits AND rich layered descriptions.
+Vary paragraph length constantly.
 Minimum 20 paragraph breaks. Minimum 800 words.
 Never one single block of text. Every. Line. Breathes.`;
-
-// ═══════════════════════════════════════════════════════
-// SINGLE PARAGRAPH DETECTOR + FORCE RETRY
-// ═══════════════════════════════════════════════════════
-
-function isSingleParagraph(text) {
-  if (!text || typeof text !== 'string') return false;
-  const paragraphBreaks = (text.match(/\n\n/g) || []).length;
-  const singleBreaks = (text.match(/\n/g) || []).length;
-  return paragraphBreaks < 8 && singleBreaks < 10;
-}
-
-function buildRetryMessages(messages) {
-  let retryMessages = messages.map(m => ({ ...m }));
-  retryMessages.push({
-    role: 'system',
-    content: `[CRITICAL FORMATTING FAILURE — REWRITE NOW]
-Your previous response was a single paragraph block. Unacceptable.
-REWRITE it now with MINIMUM 15 blank lines separating paragraphs.
-Each moment, action, and piece of dialogue belongs in its own paragraph.
-Dialogue must be merged with physical action — never floating alone.
-NO SINGLE PARAGRAPH BLOCKS.`
-  });
-  return retryMessages;
-}
-
-// ═══════════════════════════════════════════════════════
-// INJECTION FUNCTION
-// ═══════════════════════════════════════════════════════
 
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
@@ -192,72 +141,17 @@ function injectForGLM5(messages) {
   return finalMessages;
 }
 
-// ═══════════════════════════════════════════════════════
-// HELPER — make a NIM request with timeout + auto retry
-// Automatically retries on 502/503/504 up to 3 times
-// with exponential backoff before giving up
-// ═══════════════════════════════════════════════════════
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function nimPost(messages, nimModel, temperature, maxTokens, streamMode, attempt = 1) {
-  const MAX_ATTEMPTS = 3;
-  const RETRY_DELAYS = [2000, 5000, 10000]; // 2s, 5s, 10s
-
-  const payload = {
-    model: nimModel,
-    messages,
-    temperature: temperature || 0.6,
-    max_tokens: maxTokens || 4096,
-    stream: streamMode || false
-  };
-  if (ENABLE_THINKING_MODE) {
-    payload.extra_body = { chat_template_kwargs: { thinking: true } };
-  }
-
-  try {
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, payload, {
-      headers: {
-        'Authorization': `Bearer ${NIM_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      responseType: streamMode ? 'stream' : 'json',
-      timeout: 110000
-    });
-    return response;
-  } catch (err) {
-    const status = err.response?.status;
-    const isRetryable = status === 502 || status === 503 || status === 504 ||
-                        err.code === 'ECONNABORTED' ||
-                        err.code === 'ECONNRESET' ||
-                        (err.message && err.message.includes('timeout'));
-
-    if (isRetryable && attempt < MAX_ATTEMPTS) {
-      const delay = RETRY_DELAYS[attempt - 1];
-      console.log(`NIM returned ${status || err.code} — retrying in ${delay/1000}s (attempt ${attempt}/${MAX_ATTEMPTS})...`);
-      await sleep(delay);
-      return nimPost(messages, nimModel, temperature, maxTokens, streamMode, attempt + 1);
-    }
-
-    // Out of retries or non-retryable error — throw it up
-    console.error(`NIM failed after ${attempt} attempt(s): ${status || err.code} — ${err.message}`);
-    throw err;
-  }
-}
-
-// Health check endpoint
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'OpenAI to NVIDIA NIM Proxy', 
+  res.json({
+    status: 'ok',
+    service: 'OpenAI to NVIDIA NIM Proxy',
     reasoning_display: SHOW_REASONING,
     thinking_mode: ENABLE_THINKING_MODE
   });
 });
 
-// List models endpoint
+// List models
 app.get('/v1/models', (req, res) => {
   const models = Object.keys(MODEL_MAPPING).map(model => ({
     id: model,
@@ -268,13 +162,13 @@ app.get('/v1/models', (req, res) => {
   res.json({ object: 'list', data: models });
 });
 
-// Chat completions endpoint
+// Chat completions
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
-    
+
     let nimModel = MODEL_MAPPING[model];
-    
+
     if (!nimModel) {
       try {
         await axios.post(`${NIM_API_BASE}/chat/completions`, {
@@ -283,13 +177,12 @@ app.post('/v1/chat/completions', async (req, res) => {
           max_tokens: 1
         }, {
           headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-          validateStatus: (status) => status < 500,
-          timeout: 10000
+          validateStatus: (status) => status < 500
         }).then(apiRes => {
           if (apiRes.status >= 200 && apiRes.status < 300) nimModel = model;
         });
       } catch (e) {}
-      
+
       if (!nimModel) {
         const modelLower = model.toLowerCase();
         if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
@@ -297,7 +190,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
           nimModel = 'meta/llama-3.1-70b-instruct';
         } else {
-          nimModel = model; 
+          nimModel = model;
         }
       }
     }
@@ -307,85 +200,39 @@ app.post('/v1/chat/completions', async (req, res) => {
       finalMessages = injectForGLM5(messages);
     }
 
-    // Always stream for GLM-5 — keeps connection alive, prevents 504
-    const useStream = nimModel === 'z-ai/glm5' ? true : (stream || false);
+    const nimRequest = {
+      model: nimModel,
+      messages: finalMessages,
+      temperature: temperature || 0.6,
+      max_tokens: max_tokens || 9024,
+      stream: stream || false
+    };
 
-    // Keep-alive ping every 15s to prevent Render 504 on slow responses
-    let keepAliveInterval = null;
-    if (useStream) {
+    if (ENABLE_THINKING_MODE) {
+      nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+    }
+
+    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+      headers: {
+        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      responseType: stream ? 'stream' : 'json'
+    });
+
+    if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      // Send a comment ping every 15s so Render doesn't kill the connection
-      keepAliveInterval = setInterval(() => {
-        if (!res.writableEnded) res.write(': ping\n\n');
-      }, 15000);
-    }
 
-    // GLM-5 fallback model — used automatically if GLM-5 keeps returning 502/503/504
-    const GLM5_FALLBACK = 'z-ai/glm-4-air'; // GLM-4.7 on NIM
-
-    let response;
-    let usedFallback = false;
-    try {
-      response = await nimPost(finalMessages, nimModel, temperature, max_tokens, useStream);
-    } catch (nimErr) {
-      const status = nimErr.response?.status;
-      const isServerDown = status === 502 || status === 503 || status === 504;
-
-      // If GLM-5 is down after all retries, automatically fall back to GLM-4.7
-      if (nimModel === 'z-ai/glm5' && isServerDown) {
-        console.log('GLM-5 is down after all retries — falling back to GLM-4.7...');
-        usedFallback = true;
-        try {
-          response = await nimPost(finalMessages, GLM5_FALLBACK, temperature, max_tokens, useStream);
-        } catch (fallbackErr) {
-          if (keepAliveInterval) clearInterval(keepAliveInterval);
-          console.error('Fallback model also failed:', fallbackErr.message);
-          if (!res.writableEnded) {
-            res.status(503).json({
-              error: {
-                message: 'Both GLM-5 and the fallback model are currently unavailable. Nvidia NIM may be experiencing an outage. Please try again later.',
-                type: 'service_unavailable',
-                code: 503
-              }
-            });
-          }
-          return;
-        }
-      } else {
-        if (keepAliveInterval) clearInterval(keepAliveInterval);
-        if (nimErr.code === 'ECONNABORTED' || (nimErr.message && nimErr.message.includes('timeout'))) {
-          console.error('NIM timeout:', nimErr.message);
-          if (!res.writableEnded) {
-            res.status(504).json({
-              error: {
-                message: 'The AI model took too long to respond. Please try again.',
-                type: 'timeout_error',
-                code: 504
-              }
-            });
-          }
-          return;
-        }
-        throw nimErr;
-      }
-    }
-
-    if (usedFallback) {
-      console.log('Response served via GLM-4.7 fallback.');
-    }
-
-    if (useStream) {
       let buffer = '';
       let reasoningStarted = false;
-      let fullContent = '';
 
       response.data.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-        
+
         lines.forEach(line => {
           if (line.startsWith('data: ')) {
             if (line.includes('[DONE]')) {
@@ -397,8 +244,6 @@ app.post('/v1/chat/completions', async (req, res) => {
               if (data.choices && data.choices[0] && data.choices[0].delta) {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
-                
-                if (content) fullContent += content;
 
                 if (SHOW_REASONING) {
                   let combinedContent = '';
@@ -419,105 +264,63 @@ app.post('/v1/chat/completions', async (req, res) => {
                     delete data.choices[0].delta.reasoning_content;
                   }
                 } else {
-                  data.choices[0].delta.content = content || '';
+                  if (content) {
+                    data.choices[0].delta.content = content;
+                  } else {
+                    data.choices[0].delta.content = '';
+                  }
                   delete data.choices[0].delta.reasoning_content;
                 }
               }
-              if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
+              res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
-              if (!res.writableEnded) res.write(line + '\n');
+              res.write(line + '\n');
             }
           }
         });
       });
 
-      response.data.on('end', async () => {
-        if (keepAliveInterval) clearInterval(keepAliveInterval);
-
-        // Single paragraph check after stream ends — if bad, send a correction token
-        if (nimModel === 'z-ai/glm5' && isSingleParagraph(fullContent)) {
-          console.log('Single paragraph detected in stream — sending format correction note.');
-          const correctionChunk = {
-            id: `chatcmpl-fix-${Date.now()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: model,
-            choices: [{
-              index: 0,
-              delta: { content: '\n\n*[Please regenerate — response was not properly formatted into paragraphs.]*' },
-              finish_reason: null
-            }]
-          };
-          if (!res.writableEnded) {
-            res.write(`data: ${JSON.stringify(correctionChunk)}\n\n`);
-            res.write('data: [DONE]\n\n');
-          }
-        }
-
-        if (!res.writableEnded) res.end();
-      });
-
+      response.data.on('end', () => res.end());
       response.data.on('error', (err) => {
-        if (keepAliveInterval) clearInterval(keepAliveInterval);
         console.error('Stream error:', err);
-        if (!res.writableEnded) res.end();
+        res.end();
       });
 
     } else {
-      // Non-streaming response
-      let fullContent = response.data?.choices?.[0]?.message?.content || '';
-
-      // Single paragraph auto-retry for non-streaming
-      if (nimModel === 'z-ai/glm5' && isSingleParagraph(fullContent)) {
-        console.log('Single paragraph detected — retrying...');
-        try {
-          const retryResponse = await nimPost(
-            buildRetryMessages(finalMessages),
-            nimModel,
-            0.8,
-            max_tokens || 4096,
-            false
-          );
-          const retryContent = retryResponse.data?.choices?.[0]?.message?.content || '';
-          if (retryContent) response = retryResponse;
-        } catch (retryErr) {
-          console.error('Retry failed:', retryErr.message);
-        }
-      }
-
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
         model: model,
         choices: response.data.choices.map(choice => {
-          let content = choice.message?.content || '';
-          if (SHOW_REASONING && choice.message?.reasoning_content) {
-            content = '🤔 ' + choice.message.reasoning_content + '\n\n' + content;
+          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
+          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
+            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
           }
           return {
             index: choice.index,
-            message: { role: choice.message.role, content },
+            message: { role: choice.message.role, content: fullContent },
             finish_reason: choice.finish_reason
           };
         }),
-        usage: response.data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+        usage: response.data.usage || {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0
+        }
       };
       res.json(openaiResponse);
     }
-    
+
   } catch (error) {
     console.error('Proxy error:', error.message);
-    const status = error.response?.status || 500;
-    if (!res.writableEnded) {
-      res.status(status).json({
-        error: {
-          message: error.message || 'Internal server error',
-          type: 'invalid_request_error',
-          code: status
-        }
-      });
-    }
+    res.status(error.response ? error.response.status : 500).json({
+      error: {
+        message: error.message || 'Internal server error',
+        type: 'invalid_request_error',
+        code: error.response ? error.response.status : 500
+      }
+    });
   }
 });
 
