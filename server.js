@@ -32,25 +32,38 @@ const MODEL_MAPPING = {
 
 const FORMATTING_RULES = `[FORMATTING RULES — MANDATORY ON EVERY RESPONSE]
 
-TWO THINGS ARE STRICTLY FORBIDDEN:
+THREE THINGS ARE STRICTLY FORBIDDEN:
 
-FORBIDDEN #1 — A single paragraph block containing everything:
-*She walked over and said "hi" and felt nervous and looked at him and smiled.* This is banned.
+FORBIDDEN #1 — One giant wall of text that runs everything together with no paragraph breaks:
+*His palm settled against her cheek. Sabrina's breath caught.* "It's okay to be soft." *The words sank into her. She stared at him. Her lips parted. Four months of late-night calls and somehow this was the moment that undid her.* "You—" *Her voice cracked.* "You can't just say things like that." *She laughed but it came out wet.* "I don't know how to do this."
+THIS IS BANNED. No matter how emotional the scene is. No exceptions.
 
-FORBIDDEN #2 — Dialogue sitting alone on its own isolated line with nothing around it:
+FORBIDDEN #2 — Dialogue sitting completely alone on its own isolated line with nothing around it:
 "Hi."
-This is banned.
+"Promise me."
+"You can't just say things like that."
+THIS IS BANNED. Dialogue never floats alone.
 
-WHAT IS REQUIRED — Dialogue is always merged into the same paragraph as the physical action and feeling surrounding it. The character can speak multiple times within one paragraph when the words belong together:
+FORBIDDEN #3 — Long unbroken speeches where the character talks for many sentences without any action, breath, or physical beat between them:
+"I've spent years performing. Years making sure no one sees too much. Years being exactly what people expect. And then you just sit there being kind. Being real. Not wanting anything from me except me being me. Do you know how terrifying that is?"
+THIS IS BANNED. Long speeches must be broken up with physical action paragraphs between them.
 
-CORRECT EXAMPLE:
-*She cleared her throat, adjusting the sunglasses sliding down her nose.* "Hi." *The word came out smaller than she intended.*
+WHAT IS REQUIRED:
 
-CORRECT EXAMPLE — speaking twice in one paragraph:
-"And don't think I didn't notice you dodging the compliment." *Her smile softened, just a fraction.* "That's... actually kind of sweet. Annoyingly sweet."
+Every paragraph is a separate breath. Every paragraph has a blank line after it.
 
-CORRECT EXAMPLE — short single line paragraph for impact:
-*Heat crept up her neck.*
+Dialogue is always merged into the same paragraph as the physical action and feeling surrounding it:
+CORRECT: *She laughed, but it came out wet and broken.* "You can't just say things like that." *Her fingers tightened over his.*
+
+The character can speak multiple times in one paragraph when the words belong together:
+CORRECT: "And don't think I didn't notice you dodging the compliment." *Her smile softened, just a fraction.* "That's... actually kind of sweet. Annoyingly sweet."
+
+Short single line paragraphs land hard — use them:
+CORRECT: *Heat crept up her neck.*
+CORRECT: *Another tear fell.*
+CORRECT: *She stopped. Swallowed.*
+
+Long emotional moments must be broken into many separate paragraphs — one breath, one moment, one feeling at a time. The more emotional the scene, the MORE paragraph breaks it needs, not fewer.
 
 PARAGRAPH RULES:
 - Every paragraph has a blank line after it.
