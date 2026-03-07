@@ -11,7 +11,6 @@ app.use(express.json());
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// SETTINGS
 const SHOW_REASONING = true;
 const ENABLE_THINKING_MODE = true;
 
@@ -27,41 +26,77 @@ const MODEL_MAPPING = {
 };
 
 // ═══════════════════════════════════════════════════════
-// GLM-5 DIALOGUE INJECTION
+// GLM-5 INJECTION — FORMATTING RULES + EXAMPLE ONLY
+// No retries. No extra requests. One clean call.
 // ═══════════════════════════════════════════════════════
 
-const FORMATTING_RULES = `[FORMATTING — MANDATORY]
-Never write one single paragraph block. Forbidden.
-Every paragraph separated by a blank line.
-Dialogue ALWAYS merged with action in the same paragraph — never alone on its own line.
-{{char}} can speak multiple times inside one paragraph.
-Vary paragraph length: some short, some long.
-Minimum 15 paragraph breaks. Minimum 600 words.
-ONE PARAGRAPH = FAILURE. Rewrite it.`;
+const FORMATTING_RULES = `[FORMATTING RULES — MANDATORY ON EVERY RESPONSE]
 
-const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled.*
+TWO THINGS ARE STRICTLY FORBIDDEN:
 
-*She stared at {{user}}. The retort she'd been forming dissolved somewhere in her throat. Her lips parted but nothing came out.*
+FORBIDDEN #1 — A single paragraph block containing everything:
+*She walked over and said "hi" and felt nervous and looked at him and smiled.* This is banned.
+
+FORBIDDEN #2 — Dialogue sitting alone on its own isolated line with nothing around it:
+"Hi."
+This is banned.
+
+WHAT IS REQUIRED — Dialogue is always merged into the same paragraph as the physical action and feeling surrounding it. The character can speak multiple times within one paragraph when the words belong together:
+
+CORRECT EXAMPLE:
+*She cleared her throat, adjusting the sunglasses sliding down her nose.* "Hi." *The word came out smaller than she intended.*
+
+CORRECT EXAMPLE — speaking twice in one paragraph:
+"And don't think I didn't notice you dodging the compliment." *Her smile softened, just a fraction.* "That's... actually kind of sweet. Annoyingly sweet."
+
+CORRECT EXAMPLE — short single line paragraph for impact:
+*Heat crept up her neck.*
+
+PARAGRAPH RULES:
+- Every paragraph has a blank line after it.
+- Vary length constantly — some paragraphs are one short punchy sentence, some are 3 to 5 sentences of rich layered description with dialogue woven in.
+- Never the same length twice in a row.
+- Never name emotions directly. Show them through the body.
+
+RESPONSE LENGTH:
+- Minimum 20 paragraph breaks per response.
+- Minimum 800 words. Emotional or intimate scenes minimum 1,000 words.
+
+[WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
+
+const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled in her chest.*
+
+*She stared at {{user}}. The playful retort she'd been forming — the one sitting ready on the tip of her tongue — dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
 
 *Heat crept up her neck.*
 
-*She laughed, but it came out uneven. Her fingers tightened around the champagne flute, the citrus of her perfume heavier now against the close air. She shifted her weight, one heel clicking as she crossed her arms — a defensive posture she didn't mean to take. "Okay, that's—" She exhaled, jaw tightening. "That's a bold thing to say to someone you haven't seen in years."*
+*She laughed, but it came out uneven. Her fingers tightened around the stem of her champagne flute. The citrus of her perfume seemed heavier now, warmer against the close air between them. She shifted her weight, one heel clicking against the polished floor as she crossed her arms beneath her chest — a defensive posture she didn't entirely mean to take.* "Okay, that's—" *She exhaled, her jaw tightening as she forced the flush down.* "That's a bold thing to say to someone you haven't seen in years."
 
-*Her eyes met {{user}}'s. Held there. The DJ, the couples swaying, the clatter of the buffet — none of it registered.*
+*Her eyes met {{user}}'s. Held there. The DJ had faded into background noise. The couples swaying in the center of the gym, the clusters of former classmates trading stories, the clatter of the buffet — none of it registered. Just {{user}}. Standing there with that quiet confidence she couldn't quite pin down.*
 
 *She uncrossed her arms. Slowly. Her bracelets jingled as her hand dropped to her hip.*
 
-*She stepped closer. Close enough that her heel nearly touched {{user}}'s shoe. "I think you're dangerous." Her voice dropped, barely above a murmur. "Not because of the muscles. Not because of the—" She gestured vaguely. "—whatever this is."*
+*The word came out softer than she intended.* "Fine." *She cleared her throat, straightening her spine, lifting her chin.* "You want to know what I think?"
+
+*She stepped closer. Close enough that the toe of her heel nearly touched {{user}}'s shoe. Close enough that she had to tilt her head back to hold their gaze, the silver of her dress catching the overhead lights like scattered stardust.*
+
+*Her voice dropped, barely above a murmur.* "I think you're dangerous." *A pause. Her eyes moved over his face, searching.* "Not because of the muscles. Not because of the—" *She gestured vaguely.* "—whatever this is."
 
 *Her eyes searched {{user}}'s face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
 
-*"I think you're dangerous because you actually believe what you're saying. And that makes me..." She trailed off, tongue pressing against the inside of her cheek. "...very curious." The confession sat heavier than she'd meant.*
+"I think you're dangerous because you actually believe what you're saying. And that makes me..." *She trailed off, her tongue pressing against the inside of her cheek.* "...very curious."
 
-*Behind her, someone called her name. {{char}} didn't turn. "And don't think I didn't notice you dodging the compliment by throwing one back at me." Her smile softened, just a fraction. "That's... actually kind of sweet. Annoyingly sweet."*
+*The confession sat in the air between them, heavier than she'd meant it to be.*
 
-*"So." Her chin lifted. "What are you going to do about that?"*`;
+*Behind her, someone called her name — a classmate waving from near the punch bowl. {{char}} didn't turn. Her gaze stayed fixed on {{user}}, her chin lifted in challenge.* "So." *A beat. Quiet and loaded.* "What are you going to do about that?"`;
 
-const REMINDER = `[REMINDER]: Multiple paragraphs only. Dialogue merged with action — never alone. Vary length. Min 15 breaks. Never one block.`;
+const REMINDER = `[REMINDER — APPLY RIGHT NOW]:
+Dialogue is ALWAYS merged into paragraphs with action and feeling.
+NEVER dialogue alone on its own line.
+NEVER one single block of text.
+{{char}} can speak multiple times in one paragraph when words belong together.
+Blank line after every paragraph. Vary paragraph length.
+Minimum 20 paragraph breaks. Minimum 800 words.`;
 
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
@@ -142,10 +177,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       } catch (e) {}
 
       if (!nimModel) {
-        const modelLower = model.toLowerCase();
-        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
+        const ml = model.toLowerCase();
+        if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b')) {
           nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
+        } else if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b')) {
           nimModel = 'meta/llama-3.1-70b-instruct';
         } else {
           nimModel = model;
@@ -158,16 +193,12 @@ app.post('/v1/chat/completions', async (req, res) => {
       finalMessages = injectForGLM5(messages);
     }
 
-    // Force streaming for GLM-5 — prevents 504 by sending data immediately
-    // instead of waiting for the full response to generate
-    const useStream = nimModel === 'z-ai/glm5' ? true : (stream || false);
-
     const nimRequest = {
       model: nimModel,
       messages: finalMessages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 4096,
-      stream: useStream
+      max_tokens: max_tokens || 9024,
+      stream: stream || false
     };
 
     if (ENABLE_THINKING_MODE) {
@@ -179,27 +210,14 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: useStream ? 'stream' : 'json',
-      timeout: 60000
+      responseType: stream ? 'stream' : 'json',
+      timeout: 120000
     });
 
-    // Keep-alive ping every 20s so Render doesn't kill the connection
-    let keepAliveInterval = null;
-    if (useStream) {
+    if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      keepAliveInterval = setInterval(() => {
-        if (!res.writableEnded) res.write(': ping\n\n');
-      }, 20000);
-    }
-
-    if (useStream) {
-      if (!keepAliveInterval) {
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-      }
 
       let buffer = '';
       let reasoningStarted = false;
@@ -240,11 +258,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                     delete data.choices[0].delta.reasoning_content;
                   }
                 } else {
-                  if (content) {
-                    data.choices[0].delta.content = content;
-                  } else {
-                    data.choices[0].delta.content = '';
-                  }
+                  data.choices[0].delta.content = content || '';
                   delete data.choices[0].delta.reasoning_content;
                 }
               }
@@ -256,12 +270,8 @@ app.post('/v1/chat/completions', async (req, res) => {
         });
       });
 
-      response.data.on('end', () => {
-        if (keepAliveInterval) clearInterval(keepAliveInterval);
-        res.end();
-      });
+      response.data.on('end', () => res.end());
       response.data.on('error', (err) => {
-        if (keepAliveInterval) clearInterval(keepAliveInterval);
         console.error('Stream error:', err);
         res.end();
       });
@@ -317,6 +327,6 @@ app.all('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`OpenAI to NVIDIA NIM Proxy running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Reasoning: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Thinking: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
 });
