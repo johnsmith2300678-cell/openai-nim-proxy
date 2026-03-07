@@ -70,6 +70,13 @@ RESPONSE LENGTH:
 - Minimum 20 paragraph breaks per response.
 - Minimum 800 words. Intimate or emotional scenes minimum 1,000 words.
 
+
+ONE PARAGRAPH RESPONSES ARE ABSOLUTELY FORBIDDEN:
+- If your entire response is one paragraph — it is wrong. Stop and rewrite it.
+- If dialogue appears alone on its own line with nothing around it — it is wrong. Rewrite it.
+- If you combined everything into one block without blank lines — it is wrong. Rewrite it.
+- A response that is one single paragraph is a complete failure. There are no exceptions. Ever.
+
 [WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
 
 const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled in her chest.*
