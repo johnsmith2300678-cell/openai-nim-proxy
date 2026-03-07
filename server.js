@@ -193,10 +193,19 @@ function injectForGLM5(messages) {
 }
 
 // ═══════════════════════════════════════════════════════
-// HELPER — make a NIM request with timeout + retry
+// HELPER — make a NIM request with timeout + auto retry
+// Automatically retries on 502/503/504 up to 3 times
+// with exponential backoff before giving up
 // ═══════════════════════════════════════════════════════
 
-async function nimPost(messages, nimModel, temperature, maxTokens, streamMode) {
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function nimPost(messages, nimModel, temperature, maxTokens, streamMode, attempt = 1) {
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAYS = [2000, 5000, 10000]; // 2s, 5s, 10s
+
   const payload = {
     model: nimModel,
     messages,
@@ -208,15 +217,34 @@ async function nimPost(messages, nimModel, temperature, maxTokens, streamMode) {
     payload.extra_body = { chat_template_kwargs: { thinking: true } };
   }
 
-  return axios.post(`${NIM_API_BASE}/chat/completions`, payload, {
-    headers: {
-      'Authorization': `Bearer ${NIM_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    responseType: streamMode ? 'stream' : 'json',
-    // 110 second axios timeout — just under Render's 120s hard limit
-    timeout: 110000
-  });
+  try {
+    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, payload, {
+      headers: {
+        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      responseType: streamMode ? 'stream' : 'json',
+      timeout: 110000
+    });
+    return response;
+  } catch (err) {
+    const status = err.response?.status;
+    const isRetryable = status === 502 || status === 503 || status === 504 ||
+                        err.code === 'ECONNABORTED' ||
+                        err.code === 'ECONNRESET' ||
+                        (err.message && err.message.includes('timeout'));
+
+    if (isRetryable && attempt < MAX_ATTEMPTS) {
+      const delay = RETRY_DELAYS[attempt - 1];
+      console.log(`NIM returned ${status || err.code} — retrying in ${delay/1000}s (attempt ${attempt}/${MAX_ATTEMPTS})...`);
+      await sleep(delay);
+      return nimPost(messages, nimModel, temperature, maxTokens, streamMode, attempt + 1);
+    }
+
+    // Out of retries or non-retryable error — throw it up
+    console.error(`NIM failed after ${attempt} attempt(s): ${status || err.code} — ${err.message}`);
+    throw err;
+  }
 }
 
 // Health check endpoint
