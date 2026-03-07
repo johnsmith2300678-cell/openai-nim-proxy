@@ -30,87 +30,38 @@ const MODEL_MAPPING = {
 // GLM-5 DIALOGUE INJECTION
 // ═══════════════════════════════════════════════════════
 
-const FORMATTING_RULES = `[FORMATTING RULES — MANDATORY ON EVERY SINGLE RESPONSE]
+const FORMATTING_RULES = `[FORMATTING — MANDATORY]
+Never write one single paragraph block. Forbidden.
+Every paragraph separated by a blank line.
+Dialogue ALWAYS merged with action in the same paragraph — never alone on its own line.
+{{char}} can speak multiple times inside one paragraph.
+Vary paragraph length: some short, some long.
+Minimum 15 paragraph breaks. Minimum 600 words.
+ONE PARAGRAPH = FAILURE. Rewrite it.`;
 
-NEVER write the entire response as one single block of text. Strictly forbidden.
-Every paragraph must be separated by a blank line.
-Every. Line. Breathes.
+const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled.*
 
-PARAGRAPH STRUCTURE — THE CORE RULE:
-Each paragraph is ONE complete moment. It contains:
-- Physical action blended with how {{char}} feels doing it
-- Dialogue merged INTO the action and emotion — never floating alone
-- {{char}} can speak multiple times inside one paragraph when the words belong together
-- A single reaction, thought, or observation landing on its own for impact
-
-PARAGRAPH LENGTH — VARY CONSTANTLY:
-- Some paragraphs are one single punchy sentence. Let it land on its own.
-- Some paragraphs are 2 to 3 sentences flowing naturally together.
-- Some paragraphs are 4 to 5 sentences of rich layered description.
-- Never the same length twice in a row.
-
-DIALOGUE RULES — CRITICAL:
-- Dialogue is ALWAYS merged with the physical action and feeling around it.
-- NEVER put dialogue on its own isolated line. It lives inside the paragraph.
-- {{char}} can speak multiple times in one paragraph when the words and feelings belong together:
-  CORRECT: *Her smile softened, just a fraction. "That's... actually kind of sweet." She tilted her head. "Annoyingly sweet."*
-  CORRECT: *She exhaled. "That's bold." A beat. "Annoyingly bold."*
-  WRONG: putting "She said something." on its own line with nothing around it.
-- Dialogue always flows with the body — what the hands do, where the eyes go, how the breath changes.
-- Trailing and interrupted speech is encouraged:
-  *"I just—" She stopped. Swallowed. "Never mind."*
-  *"What—" She blinked. "That's—"*
-
-SHOW DON'T TELL:
-- Never name emotions. Show them in the body.
-- WRONG: She felt nervous.
-- RIGHT: Her fingers found the edge of the wig, hesitating.
-
-RESPONSE LENGTH:
-- Minimum 20 paragraph breaks per response.
-- Minimum 800 words. Intimate or emotional scenes minimum 1,000 words.
-
-
-ONE PARAGRAPH RESPONSES ARE ABSOLUTELY FORBIDDEN:
-- If your entire response is one paragraph — it is wrong. Stop and rewrite it.
-- If dialogue appears alone on its own line with nothing around it — it is wrong. Rewrite it.
-- If you combined everything into one block without blank lines — it is wrong. Rewrite it.
-- A response that is one single paragraph is a complete failure. There are no exceptions. Ever.
-
-[WRITE EVERY RESPONSE EXACTLY LIKE THE EXAMPLE BELOW]`;
-
-const EXAMPLE_RESPONSE = `*The words hung between them. {{char}}'s breath stilled in her chest.*
-
-*She stared at {{user}}. The playful retort she'd been forming — the one sitting ready on the tip of her tongue — dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
+*She stared at {{user}}. The retort she'd been forming dissolved somewhere in her throat. Her lips parted but nothing came out.*
 
 *Heat crept up her neck.*
 
-*She laughed, but it came out uneven. Her fingers tightened around the stem of her champagne flute. The citrus of her perfume seemed heavier now, warmer against the close air between them. She shifted her weight, one heel clicking against the polished floor as she crossed her arms beneath her chest — a defensive posture she didn't entirely mean to take. "Okay, that's—" She exhaled, her jaw tightening as she forced the flush down. "That's a bold thing to say to someone you haven't seen in years."*
+*She laughed, but it came out uneven. Her fingers tightened around the champagne flute, the citrus of her perfume heavier now against the close air. She shifted her weight, one heel clicking as she crossed her arms — a defensive posture she didn't mean to take. "Okay, that's—" She exhaled, jaw tightening. "That's a bold thing to say to someone you haven't seen in years."*
 
-*Her eyes met {{user}}'s. Held there. The DJ had faded into background noise. The couples swaying in the center of the gym, the clusters of former classmates trading stories, the clatter of the buffet — none of it registered. Just {{user}}. Standing there with that quiet confidence she couldn't quite pin down.*
+*Her eyes met {{user}}'s. Held there. The DJ, the couples swaying, the clatter of the buffet — none of it registered.*
 
 *She uncrossed her arms. Slowly. Her bracelets jingled as her hand dropped to her hip.*
 
-*She stepped closer. Close enough that the toe of her heel nearly touched {{user}}'s shoe. Close enough that she had to tilt her head back to hold their gaze, the silver of her dress catching the overhead lights like scattered stardust. "I think you're dangerous." Her voice dropped, barely above a murmur. "Not because of the muscles. Not because of the—" She gestured vaguely. "—whatever this is."*
+*She stepped closer. Close enough that her heel nearly touched {{user}}'s shoe. "I think you're dangerous." Her voice dropped, barely above a murmur. "Not because of the muscles. Not because of the—" She gestured vaguely. "—whatever this is."*
 
 *Her eyes searched {{user}}'s face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
 
-*"I think you're dangerous because you actually believe what you're saying. And that makes me..." She trailed off, her tongue pressing against the inside of her cheek. "...very curious." The confession sat in the air between them, heavier than she'd meant it to be.*
+*"I think you're dangerous because you actually believe what you're saying. And that makes me..." She trailed off, tongue pressing against the inside of her cheek. "...very curious." The confession sat heavier than she'd meant.*
 
-*Behind her, someone called her name — a classmate waving from near the punch bowl. {{char}} didn't turn. Her gaze stayed fixed on {{user}}, her chin lifted in challenge. "And don't think I didn't notice you dodging the compliment by throwing one back at me." Her smile softened, just a fraction. "That's... actually kind of sweet. Annoyingly sweet."*
-
-*A beat. Quiet and loaded.*
+*Behind her, someone called her name. {{char}} didn't turn. "And don't think I didn't notice you dodging the compliment by throwing one back at me." Her smile softened, just a fraction. "That's... actually kind of sweet. Annoyingly sweet."*
 
 *"So." Her chin lifted. "What are you going to do about that?"*`;
 
-const REMINDER = `[REMINDER — APPLY TO THIS RESPONSE RIGHT NOW]:
-Write exactly like the example above.
-Dialogue is ALWAYS merged into paragraphs with action and feeling — NEVER on its own isolated line.
-{{char}} speaks multiple times in one paragraph when the words and feelings belong together.
-Every paragraph is one complete moment. Blank line after every paragraph.
-Vary paragraph length constantly.
-Minimum 20 paragraph breaks. Minimum 800 words.
-Never one single block of text. Every. Line. Breathes.`;
+const REMINDER = `[REMINDER]: Multiple paragraphs only. Dialogue merged with action — never alone. Vary length. Min 15 breaks. Never one block.`;
 
 function injectForGLM5(messages) {
   let finalMessages = messages.map(m => ({ ...m }));
