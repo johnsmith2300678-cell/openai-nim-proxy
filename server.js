@@ -322,26 +322,58 @@ app.post('/v1/chat/completions', async (req, res) => {
       }, 15000);
     }
 
+    // GLM-5 fallback model — used automatically if GLM-5 keeps returning 502/503/504
+    const GLM5_FALLBACK = 'z-ai/glm-4-air'; // GLM-4.7 on NIM
+
     let response;
+    let usedFallback = false;
     try {
       response = await nimPost(finalMessages, nimModel, temperature, max_tokens, useStream);
     } catch (nimErr) {
-      if (keepAliveInterval) clearInterval(keepAliveInterval);
-      // If it times out, return a clean error instead of crashing
-      if (nimErr.code === 'ECONNABORTED' || nimErr.message.includes('timeout')) {
-        console.error('NIM timeout:', nimErr.message);
-        if (!res.writableEnded) {
-          res.status(504).json({
-            error: {
-              message: 'The AI model took too long to respond. Please try again.',
-              type: 'timeout_error',
-              code: 504
-            }
-          });
+      const status = nimErr.response?.status;
+      const isServerDown = status === 502 || status === 503 || status === 504;
+
+      // If GLM-5 is down after all retries, automatically fall back to GLM-4.7
+      if (nimModel === 'z-ai/glm5' && isServerDown) {
+        console.log('GLM-5 is down after all retries — falling back to GLM-4.7...');
+        usedFallback = true;
+        try {
+          response = await nimPost(finalMessages, GLM5_FALLBACK, temperature, max_tokens, useStream);
+        } catch (fallbackErr) {
+          if (keepAliveInterval) clearInterval(keepAliveInterval);
+          console.error('Fallback model also failed:', fallbackErr.message);
+          if (!res.writableEnded) {
+            res.status(503).json({
+              error: {
+                message: 'Both GLM-5 and the fallback model are currently unavailable. Nvidia NIM may be experiencing an outage. Please try again later.',
+                type: 'service_unavailable',
+                code: 503
+              }
+            });
+          }
+          return;
         }
-        return;
+      } else {
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+        if (nimErr.code === 'ECONNABORTED' || (nimErr.message && nimErr.message.includes('timeout'))) {
+          console.error('NIM timeout:', nimErr.message);
+          if (!res.writableEnded) {
+            res.status(504).json({
+              error: {
+                message: 'The AI model took too long to respond. Please try again.',
+                type: 'timeout_error',
+                code: 504
+              }
+            });
+          }
+          return;
+        }
+        throw nimErr;
       }
-      throw nimErr;
+    }
+
+    if (usedFallback) {
+      console.log('Response served via GLM-4.7 fallback.');
     }
 
     if (useStream) {
