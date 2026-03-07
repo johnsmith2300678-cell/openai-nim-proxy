@@ -11,8 +11,8 @@ app.use(express.json());
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-const SHOW_REASONING = true;
-const ENABLE_THINKING_MODE = true;
+const SHOW_REASONING = false;
+const ENABLE_THINKING_MODE = false;
 
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
@@ -145,6 +145,67 @@ function injectForGLM5(messages) {
   }
 
   return finalMessages;
+}
+
+// ═══════════════════════════════════════════════════════
+// SERVER-SIDE REFORMATTER
+// Runs after GLM-5 responds. Breaks walls of text into
+// proper paragraphs. Never touches the reasoning block.
+// ═══════════════════════════════════════════════════════
+
+function separateReasoningFromContent(text) {
+  const reasoningMarker = '🤔 ';
+  if (!text.startsWith(reasoningMarker)) {
+    return { reasoning: '', content: text };
+  }
+  const doubleNewline = text.indexOf('\n\n');
+  if (doubleNewline === -1) {
+    return { reasoning: text, content: '' };
+  }
+  return {
+    reasoning: text.substring(0, doubleNewline),
+    content: text.substring(doubleNewline + 2)
+  };
+}
+
+function reformatContent(text) {
+  if (!text || typeof text !== 'string') return text;
+  const existingBreaks = (text.match(/\n\n/g) || []).length;
+  if (existingBreaks >= 10) return text;
+
+  let result = text;
+
+  // Break between closing italic and opening dialogue
+  result = result.replace(/(\*)\ +(")/g, '$1\n\n$2');
+  result = result.replace(/(\*)\s+(")/g, '$1\n\n$2');
+
+  // Break between closing dialogue and new italic starting with capital
+  result = result.replace(/([.!?'"])\s+\*([A-Z])/g, '$1\n\n*$2');
+
+  // Break between two italic blocks
+  result = result.replace(/(\*)\s+(\*[A-Z])/g, '$1\n\n$2');
+
+  // Split long italic blocks at sentence boundaries — only long next words
+  result = result.replace(/\*([^*]+)\*/g, (match, inner) => {
+    const split = inner.replace(/([.!?])\s+([A-Z][a-z]{10,})/g, (m, punct, nextWord) => {
+      return punct + '\n\n' + nextWord;
+    });
+    return '*' + split + '*';
+  });
+
+  result = result.replace(/\n{3,}/g, '\n\n');
+  result = result.trim();
+  return result;
+}
+
+function reformatGLM5Response(fullText) {
+  if (!fullText) return fullText;
+  const { reasoning, content } = separateReasoningFromContent(fullText);
+  const reformattedContent = reformatContent(content);
+  if (reasoning) {
+    return reasoning + '\n\n' + reformattedContent;
+  }
+  return reformattedContent;
 }
 
 // Health check
@@ -299,6 +360,10 @@ app.post('/v1/chat/completions', async (req, res) => {
           let fullContent = choice.message && choice.message.content ? choice.message.content : '';
           if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
             fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+          }
+          // Apply reformatter for GLM-5 — keeps reasoning block intact, breaks content into paragraphs
+          if (nimModel === 'z-ai/glm5') {
+            fullContent = reformatGLM5Response(fullContent);
           }
           return {
             index: choice.index,
