@@ -5,30 +5,40 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-// FIX #1: Increased body size limit to 10mb — Lorebook + long chat history
-//         easily exceeds the default 100kb limit, causing 413 errors on Janitor AI
+// ── PROCESS CRASH GUARD ───────────────────────────────────────────────────────
+// Prevents one bad request from taking down the entire Render server instance.
+// Without this, any unhandled async error kills the process and causes 502s.
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
+// ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 app.use(cors());
+// 10mb limit — Lorebook + long chat history easily exceeds the 100kb default,
+// which causes silent 413 errors on Janitor AI
 app.use(express.json({ limit: '10mb' }));
 
-// NVIDIA NIM API configuration
+// ── CONFIG ────────────────────────────────────────────────────────────────────
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
-const NIM_API_KEY = process.env.NIM_API_KEY;
+const NIM_API_KEY  = process.env.NIM_API_KEY;
 
-// SETTINGS ---------------------------------------------------------
-// Set to true to see the model's thought process in the reply
-const SHOW_REASONING = true;
+const SHOW_REASONING    = true;  // prepend 🤔 reasoning block to replies
+const ENABLE_THINKING_MODE = true;  // GLM-5 only — ignored for all other models
 
-// Set to true to enable advanced thinking mode (GLM-5 only)
-const ENABLE_THINKING_MODE = true;
+// Render free plan drops idle HTTP connections around 30s.
+// NIM can be slow on cold start. 2 minutes gives it enough room.
+const AXIOS_TIMEOUT_MS = 120000;
 
-// FIX #3: Axios timeout in ms — prevents silent hangs on Render free plan
-// Render drops idle connections; NIM can be slow on first token
-const AXIOS_TIMEOUT_MS = 120000; // 2 minutes
-// ------------------------------------------------------------------
+// SSE streams need a heartbeat or Render's proxy closes the connection
+// before NIM finishes generating — causes blank/cut-off responses on Janitor AI
+const SSE_KEEPALIVE_MS = 20000; // send a ping every 20s
 
-// Roleplay greeting dialogue for GLM-5 (Sabrina character)
-const ROLEPLAY_GREETING = `*Four months. One hundred and twenty-three days of texts that ran past midnight, voice notes tucked between flights and studio sessions. She'd memorized the rhythm of his replies — lowercase when he was tired, a specific emoji when he was pretending not to laugh.*
+// ── ROLEPLAY GREETING (GLM-5 / Sabrina character) ─────────────────────────────
+const ROLEPLAY_GREETING =
+`*Four months. One hundred and twenty-three days of texts that ran past midnight, voice notes tucked between flights and studio sessions. She'd memorized the rhythm of his replies — lowercase when he was tired, a specific emoji when he was pretending not to laugh.*
 
 *And now she was standing outside his door.*
 
@@ -88,22 +98,22 @@ const ROLEPLAY_GREETING = `*Four months. One hundred and twenty-three days of te
 
 *And for the first time in a long time, Sabrina felt like she was exactly where she was supposed to be.*`;
 
-// Model mapping
+// ── MODEL MAPPING ─────────────────────────────────────────────────────────────
 const MODEL_MAPPING = {
-  'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
-  'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
-  'gpt-4-turbo': 'moonshotai/kimi-k2-instruct-0905',
-  'gpt-4o': 'deepseek-ai/deepseek-v3.1',
-  'claude-3-opus': 'openai/gpt-oss-120b',
-  'claude-3-sonnet': 'openai/gpt-oss-20b',
-  'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking',
-  'glm-5': 'z-ai/glm5'
+  'gpt-3.5-turbo':  'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'gpt-4':          'qwen/qwen3-coder-480b-a35b-instruct',
+  'gpt-4-turbo':    'moonshotai/kimi-k2-instruct-0905',
+  'gpt-4o':         'deepseek-ai/deepseek-v3.1',
+  'claude-3-opus':  'openai/gpt-oss-120b',
+  'claude-3-sonnet':'openai/gpt-oss-20b',
+  'gemini-pro':     'qwen/qwen3-next-80b-a3b-thinking',
+  'glm-5':          'z-ai/glm5'
 };
 
-// GLM-5 NIM model identifiers — gates thinking mode and greeting injection
+// GLM-5 identifiers — gates thinking mode and greeting injection
 const GLM5_MODELS = ['glm-5', 'z-ai/glm5'];
 
-// Health check endpoint
+// ── HEALTH CHECK ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -113,29 +123,26 @@ app.get('/health', (req, res) => {
   });
 });
 
-// List models endpoint
+// ── LIST MODELS ───────────────────────────────────────────────────────────────
 app.get('/v1/models', (req, res) => {
-  const models = Object.keys(MODEL_MAPPING).map(model => ({
-    id: model,
+  const models = Object.keys(MODEL_MAPPING).map(id => ({
+    id,
     object: 'model',
     created: Date.now(),
     owned_by: 'nvidia-nim-proxy'
   }));
-
-  res.json({
-    object: 'list',
-    data: models
-  });
+  res.json({ object: 'list', data: models });
 });
 
-// Helper: inject roleplay greeting for GLM-5 if no prior assistant message exists
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+// Inject Sabrina greeting as the first assistant message on a fresh GLM-5 chat.
+// Preserves all system messages (character card / lorebook) at the top.
 function injectRoleplayGreeting(messages, requestedModel) {
   if (!GLM5_MODELS.includes(requestedModel)) return messages;
+  if (messages.some(m => m.role === 'assistant')) return messages;
 
-  const hasAssistantMessage = messages.some(m => m.role === 'assistant');
-  if (hasAssistantMessage) return messages;
-
-  const systemMessages = messages.filter(m => m.role === 'system');
+  const systemMessages    = messages.filter(m => m.role === 'system');
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
 
   return [
@@ -145,94 +152,69 @@ function injectRoleplayGreeting(messages, requestedModel) {
   ];
 }
 
-// Helper: flush any remaining SSE buffer content before closing stream
+// Flush any partial SSE line still sitting in the buffer when the stream ends.
+// NIM sometimes sends a final chunk without a trailing newline.
 function flushBuffer(buffer, res) {
   if (!buffer || !buffer.trim()) return;
-  const lines = buffer.split('\n');
-  lines.forEach(line => {
+  buffer.split('\n').forEach(line => {
     if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-      try {
-        JSON.parse(line.slice(6));
-        res.write(line + '\n\n');
-      } catch (e) {
-        // skip malformed leftover chunk
-      }
+      try { JSON.parse(line.slice(6)); res.write(line + '\n\n'); } catch (_) {}
     }
   });
 }
 
-// Chat completions endpoint
+// ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
 
-    // FIX #4: Validate required fields — prevents TypeError crash when
-    //         Janitor AI sends a malformed or incomplete request body
+    // ── Input validation ──────────────────────────────────────────────────────
+    // Janitor AI can occasionally send incomplete payloads.
+    // Failing here with a clean 400 is far better than crashing with a TypeError.
     if (!model || typeof model !== 'string') {
       return res.status(400).json({
-        error: {
-          message: 'Missing or invalid "model" field in request body',
-          type: 'invalid_request_error',
-          code: 400
-        }
+        error: { message: 'Missing or invalid "model" field', type: 'invalid_request_error', code: 400 }
       });
     }
-
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
-        error: {
-          message: 'Missing or invalid "messages" field in request body',
-          type: 'invalid_request_error',
-          code: 400
-        }
+        error: { message: 'Missing or invalid "messages" field', type: 'invalid_request_error', code: 400 }
       });
     }
 
-    // Smart model selection
+    // ── Model resolution ──────────────────────────────────────────────────────
     let nimModel = MODEL_MAPPING[model];
 
     if (!nimModel) {
+      // Try the exact string as a NIM model ID first
       try {
-        const verifyRes = await axios.post(
+        const probe = await axios.post(
           `${NIM_API_BASE}/chat/completions`,
+          { model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 },
           {
-            model: model,
-            messages: [{ role: 'user', content: 'test' }],
-            max_tokens: 1
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${NIM_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            validateStatus: (status) => status < 500,
+            headers: { Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
+            validateStatus: s => s < 500,
             timeout: AXIOS_TIMEOUT_MS
           }
         );
-
-        if (verifyRes.status >= 200 && verifyRes.status < 300) {
-          nimModel = model;
-        }
-      } catch (e) {
-        // Ignore errors during verification
-      }
+        if (probe.status >= 200 && probe.status < 300) nimModel = model;
+      } catch (_) {}
 
       if (!nimModel) {
-        const modelLower = model.toLowerCase();
-        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
+        const ml = model.toLowerCase();
+        if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b')) {
           nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
+        } else if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b')) {
           nimModel = 'meta/llama-3.1-70b-instruct';
         } else {
-          nimModel = model;
+          nimModel = model; // last resort — pass through as-is
         }
       }
     }
 
-    // Inject roleplay greeting for GLM-5 if applicable
+    // ── Build NIM request ─────────────────────────────────────────────────────
     const processedMessages = injectRoleplayGreeting(messages, model);
 
-    // Build the request payload
     const nimRequest = {
       model: nimModel,
       messages: processedMessages,
@@ -241,31 +223,33 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: stream || false
     };
 
-    // FIX #2: Only apply thinking mode to GLM-5 — sending extra_body to other
-    //         models (llama, nemotron, qwen, etc.) causes 400/422 errors on NIM
+    // thinking mode is GLM-5 exclusive — sending extra_body to other models
+    // causes 400/422 errors on NIM
     if (ENABLE_THINKING_MODE && GLM5_MODELS.includes(nimModel)) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
 
-    // Make request to NVIDIA NIM API
-    // FIX #3: Added timeout so Render free plan doesn't silently hang
+    // ── Call NIM ──────────────────────────────────────────────────────────────
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
-      headers: {
-        'Authorization': `Bearer ${NIM_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
       responseType: stream ? 'stream' : 'json',
       timeout: AXIOS_TIMEOUT_MS
     });
 
+    // ── STREAMING ─────────────────────────────────────────────────────────────
     if (stream) {
-      // Handle streaming response
-      // X-Accel-Buffering: no — disables nginx proxy buffering on Render
-      // Without this, SSE chunks get batched instead of streaming live to Janitor AI
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
+      // Disables nginx proxy buffering on Render — without this SSE chunks
+      // arrive batched instead of token-by-token on Janitor AI
       res.setHeader('X-Accel-Buffering', 'no');
+
+      // Keep-alive ping — prevents Render's 30s idle timeout from closing
+      // the connection while NIM is still thinking
+      const keepAlive = setInterval(() => {
+        if (!res.writableEnded) res.write(': ping\n\n');
+      }, SSE_KEEPALIVE_MS);
 
       let buffer = '';
       let reasoningStarted = false;
@@ -278,8 +262,6 @@ app.post('/v1/chat/completions', async (req, res) => {
         lines.forEach(line => {
           if (!line.startsWith('data: ')) return;
 
-          // FIX #5: SSE spec requires \n\n after every event frame
-          //         Using only \n on [DONE] causes Janitor AI stream parsers to hang
           if (line.includes('[DONE]')) {
             res.write('data: [DONE]\n\n');
             return;
@@ -287,52 +269,47 @@ app.post('/v1/chat/completions', async (req, res) => {
 
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.choices && data.choices[0] && data.choices[0].delta) {
-              const reasoning = data.choices[0].delta.reasoning_content;
-              const content = data.choices[0].delta.content;
 
-              if (SHOW_REASONING) {
-                let combinedContent = '';
+            // Guard: NIM occasionally sends chunks with no choices
+            if (!data.choices || !data.choices[0] || !data.choices[0].delta) {
+              res.write('data: ' + JSON.stringify(data) + '\n\n');
+              return;
+            }
 
-                if (reasoning && !reasoningStarted) {
-                  combinedContent = '🤔 ' + reasoning;
-                  reasoningStarted = true;
-                } else if (reasoning) {
-                  combinedContent = reasoning;
-                }
+            const reasoning = data.choices[0].delta.reasoning_content;
+            const content   = data.choices[0].delta.content;
 
-                if (content && reasoningStarted) {
-                  combinedContent += '\n\n' + content;
-                  reasoningStarted = false;
-                } else if (content) {
-                  combinedContent += content;
-                }
-
-                if (combinedContent) {
-                  data.choices[0].delta.content = combinedContent;
-                  delete data.choices[0].delta.reasoning_content;
-                }
-              } else {
-                data.choices[0].delta.content = content || '';
+            if (SHOW_REASONING) {
+              let combined = '';
+              if (reasoning && !reasoningStarted) { combined = '🤔 ' + reasoning; reasoningStarted = true; }
+              else if (reasoning)                 { combined = reasoning; }
+              if (content && reasoningStarted)    { combined += '\n\n' + content; reasoningStarted = false; }
+              else if (content)                   { combined += content; }
+              if (combined) {
+                data.choices[0].delta.content = combined;
                 delete data.choices[0].delta.reasoning_content;
               }
+            } else {
+              data.choices[0].delta.content = content || '';
+              delete data.choices[0].delta.reasoning_content;
             }
+
             res.write('data: ' + JSON.stringify(data) + '\n\n');
-          } catch (e) {
+          } catch (_) {
             res.write(line + '\n\n');
           }
         });
       });
 
       response.data.on('end', () => {
-        // Flush any remaining buffered content before closing
+        clearInterval(keepAlive);
         flushBuffer(buffer, res);
         res.end();
       });
 
       response.data.on('error', (err) => {
-        console.error('Stream error:', err);
-        // FIX #6: Stream may already be open — check before trying to set headers
+        console.error('[stream error]', err.message);
+        clearInterval(keepAlive);
         if (!res.headersSent) {
           res.status(500).json({ error: { message: err.message, type: 'stream_error', code: 500 } });
         } else {
@@ -340,72 +317,62 @@ app.post('/v1/chat/completions', async (req, res) => {
         }
       });
 
+    // ── NON-STREAMING ─────────────────────────────────────────────────────────
     } else {
-      // Handle non-streaming response
-      const openaiResponse = {
+      // Guard: NIM can return an empty choices array on rate-limit or overload
+      const choices = (response.data.choices || []).map(choice => {
+        let content = (choice.message && choice.message.content) ? choice.message.content : '';
+        if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
+          content = '🤔 ' + choice.message.reasoning_content + '\n\n' + content;
+        }
+        return {
+          index: choice.index || 0,
+          message: { role: choice.message ? choice.message.role : 'assistant', content },
+          finish_reason: choice.finish_reason || 'stop'
+        };
+      });
+
+      res.json({
         id: 'chatcmpl-' + Date.now(),
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: response.data.choices.map(choice => {
-          let fullContent = (choice.message && choice.message.content) ? choice.message.content : '';
-
-          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
-          }
-
-          return {
-            index: choice.index,
-            message: {
-              role: choice.message.role,
-              content: fullContent
-            },
-            finish_reason: choice.finish_reason
-          };
-        }),
-        usage: response.data.usage || {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0
-        }
-      };
-
-      res.json(openaiResponse);
+        model,
+        choices,
+        usage: response.data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      });
     }
 
   } catch (error) {
-    console.error('Proxy error:', error.message);
+    console.error('[proxy error]', error.message);
 
-    // FIX #6: If streaming already started, headers are already sent
-    //         Calling res.status() again crashes the Node process
-    if (res.headersSent) {
-      return res.end();
-    }
+    // If streaming already opened the connection, headers are already sent.
+    // Calling res.status() a second time throws and crashes the process.
+    if (res.headersSent) return res.end();
 
-    res.status(error.response ? error.response.status : 500).json({
-      error: {
-        message: error.message || 'Internal server error',
-        type: 'invalid_request_error',
-        code: error.response ? error.response.status : 500
-      }
+    // Forward NIM's actual status code (401, 403, 429, 500, 502, 503, 504)
+    // so Janitor AI can surface the real reason instead of a generic error.
+    const status = error.response ? error.response.status : 500;
+    const nimMsg  = error.response && error.response.data && error.response.data.detail
+      ? error.response.data.detail
+      : (error.message || 'Internal server error');
+
+    res.status(status).json({
+      error: { message: nimMsg, type: 'invalid_request_error', code: status }
     });
   }
 });
 
-// Catch-all
+// ── CATCH-ALL 404 ─────────────────────────────────────────────────────────────
 app.all('*', (req, res) => {
   res.status(404).json({
-    error: {
-      message: 'Endpoint ' + req.path + ' not found',
-      type: 'invalid_request_error',
-      code: 404
-    }
+    error: { message: 'Endpoint ' + req.path + ' not found', type: 'invalid_request_error', code: 404 }
   });
 });
 
+// ── START ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log('OpenAI to NVIDIA NIM Proxy running on port ' + PORT);
-  console.log('Health check: http://localhost:' + PORT + '/health');
-  console.log('Reasoning display: ' + (SHOW_REASONING ? 'ENABLED' : 'DISABLED'));
-  console.log('Thinking mode: ' + (ENABLE_THINKING_MODE ? 'ENABLED (GLM-5 only)' : 'DISABLED'));
+  console.log('OpenAI → NVIDIA NIM Proxy on port ' + PORT);
+  console.log('Health: http://localhost:' + PORT + '/health');
+  console.log('Reasoning: ' + (SHOW_REASONING ? 'ON' : 'OFF'));
+  console.log('Thinking mode: ' + (ENABLE_THINKING_MODE ? 'ON (GLM-5 only)' : 'OFF'));
 });
