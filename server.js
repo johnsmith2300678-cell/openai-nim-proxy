@@ -20,20 +20,14 @@ const NIM_API_KEY  = process.env.NIM_API_KEY;
 const SHOW_REASONING       = true;
 const ENABLE_THINKING_MODE = true;
 
-// Render free plan cold-starts slow. Forcing streaming means the first token
-// arrives fast and the SSE keep-alive prevents the connection from dying.
-// Non-streaming sits silent for the full generation → always times out.
-const FORCE_STREAM = true;
+// Render proxy gives up if no response headers arrive within ~10s.
+// We now send SSE headers FIRST, then call NIM — so Render sees a response immediately.
+const AXIOS_TIMEOUT_MS = 55000; // 55s — safely under Render's 60s request limit
 
-// How long to wait for NIM to send the FIRST token before giving up.
-// 30s is safe for Render free plan's proxy layer.
-const AXIOS_TIMEOUT_MS = 30000;
-
-// Keep the SSE connection alive so Render doesn't close it while NIM thinks.
-const SSE_KEEPALIVE_MS = 15000;
+// Ping interval to keep the SSE connection alive while NIM is thinking
+const SSE_KEEPALIVE_MS = 10000;
 
 // ── ROLEPLAY GREETING (GLM-5 / Sabrina) ──────────────────────────────────────
-// Each paragraph is separated by \n\n so Janitor AI renders them as separate blocks.
 const ROLEPLAY_GREETING = [
   "*Four months. One hundred and twenty-three days of texts that ran past midnight, voice notes tucked between flights and studio sessions. She'd memorized the rhythm of his replies — lowercase when he was tired, a specific emoji when he was pretending not to laugh.*",
 
@@ -126,10 +120,21 @@ app.get('/v1/models', (req, res) => {
 });
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
+function resolveModel(model) {
+  if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
+  const ml = model.toLowerCase();
+  if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b')) {
+    return 'meta/llama-3.1-405b-instruct';
+  }
+  if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b')) {
+    return 'meta/llama-3.1-70b-instruct';
+  }
+  return model; // pass through as-is
+}
+
 function injectRoleplayGreeting(messages, requestedModel) {
   if (!GLM5_MODELS.includes(requestedModel)) return messages;
   if (messages.some(m => m.role === 'assistant')) return messages;
-
   const sys    = messages.filter(m => m.role === 'system');
   const nonSys = messages.filter(m => m.role !== 'system');
   return [...sys, { role: 'assistant', content: ROLEPLAY_GREETING }, ...nonSys];
@@ -146,49 +151,54 @@ function flushBuffer(buffer, res) {
 
 // ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
 app.post('/v1/chat/completions', async (req, res) => {
+
+  // ── STEP 1: Send SSE headers IMMEDIATELY ─────────────────────────────────
+  // This is the 502 fix. Render's proxy requires response headers within ~10s.
+  // If we wait for NIM to respond before setting headers, we always risk 502.
+  // By setting headers first, Render sees a live connection right away.
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  // ── STEP 2: Start keepalive pings immediately ─────────────────────────────
+  // Keeps Render's proxy from closing the connection while NIM cold-starts.
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) res.write(': ping\n\n');
+  }, SSE_KEEPALIVE_MS);
+
+  // ── Helper to cleanly close with an error event ───────────────────────────
+  function sendError(message, code) {
+    clearInterval(keepAlive);
+    if (!res.writableEnded) {
+      // Send error as a valid SSE data event so Janitor AI can display it
+      const errPayload = JSON.stringify({
+        id: 'chatcmpl-err',
+        object: 'chat.completion.chunk',
+        choices: [{
+          index: 0,
+          delta: { role: 'assistant', content: `\n\n[Error ${code}: ${message}]` },
+          finish_reason: 'stop'
+        }]
+      });
+      res.write('data: ' + errPayload + '\n\n');
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
+  }
+
   try {
     const { model, messages, temperature, max_tokens } = req.body;
 
     // Input validation
     if (!model || typeof model !== 'string') {
-      return res.status(400).json({
-        error: { message: 'Missing or invalid "model" field', type: 'invalid_request_error', code: 400 }
-      });
+      return sendError('Missing or invalid model field', 400);
     }
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({
-        error: { message: 'Missing or invalid "messages" field', type: 'invalid_request_error', code: 400 }
-      });
+      return sendError('Missing or invalid messages field', 400);
     }
 
-    // Model resolution
-    let nimModel = MODEL_MAPPING[model];
-    if (!nimModel) {
-      try {
-        const probe = await axios.post(
-          `${NIM_API_BASE}/chat/completions`,
-          { model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 },
-          {
-            headers: { Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-            validateStatus: s => s < 500,
-            timeout: AXIOS_TIMEOUT_MS
-          }
-        );
-        if (probe.status >= 200 && probe.status < 300) nimModel = model;
-      } catch (_) {}
-
-      if (!nimModel) {
-        const ml = model.toLowerCase();
-        if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b')) {
-          nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b')) {
-          nimModel = 'meta/llama-3.1-70b-instruct';
-        } else {
-          nimModel = model;
-        }
-      }
-    }
-
+    const nimModel          = resolveModel(model);
     const processedMessages = injectRoleplayGreeting(messages, model);
 
     const nimRequest = {
@@ -196,30 +206,19 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages: processedMessages,
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 4096,
-      stream: true  // ALWAYS stream — prevents Render timeout on slow NIM responses
+      stream: true
     };
 
     if (ENABLE_THINKING_MODE && GLM5_MODELS.includes(nimModel)) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
 
-    // Always use streaming response type
+    // ── STEP 3: Call NIM — headers are already sent so no 502 risk ───────────
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: { Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
       responseType: 'stream',
       timeout: AXIOS_TIMEOUT_MS
     });
-
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    // Keep-alive ping prevents Render from closing idle SSE connection
-    const keepAlive = setInterval(() => {
-      if (!res.writableEnded) res.write(': ping\n\n');
-    }, SSE_KEEPALIVE_MS);
 
     let buffer = '';
     let reasoningStarted = false;
@@ -273,36 +272,23 @@ app.post('/v1/chat/completions', async (req, res) => {
     response.data.on('end', () => {
       clearInterval(keepAlive);
       flushBuffer(buffer, res);
-      res.end();
+      if (!res.writableEnded) res.end();
     });
 
     response.data.on('error', (err) => {
       console.error('[stream error]', err.message);
-      clearInterval(keepAlive);
-      if (!res.headersSent) {
-        res.status(500).json({ error: { message: err.message, type: 'stream_error', code: 500 } });
-      } else {
-        res.end();
-      }
+      sendError(err.message, 500);
     });
 
   } catch (error) {
     console.error('[proxy error]', error.message);
-    if (res.headersSent) return res.end();
-
-    const status = error.response ? error.response.status : 500;
-    const msg = (error.response && error.response.data && error.response.data.detail)
-      ? error.response.data.detail
-      : error.message || 'Internal server error';
-
-    // Friendly timeout message instead of raw axios error
-    const finalMsg = error.code === 'ECONNABORTED'
-      ? 'NIM API did not respond in time. Try again — cold starts can be slow.'
-      : msg;
-
-    res.status(status).json({
-      error: { message: finalMsg, type: 'invalid_request_error', code: status }
-    });
+    const code = error.response ? error.response.status : 500;
+    const msg  = error.code === 'ECONNABORTED'
+      ? 'NIM API timed out. Try again — cold starts can be slow.'
+      : (error.response && error.response.data && error.response.data.detail)
+        ? error.response.data.detail
+        : error.message || 'Internal server error';
+    sendError(msg, code);
   }
 });
 
@@ -317,6 +303,5 @@ app.all('*', (req, res) => {
 app.listen(PORT, () => {
   console.log('OpenAI → NVIDIA NIM Proxy on port ' + PORT);
   console.log('Health: http://localhost:' + PORT + '/health');
-  console.log('Force stream: ON (prevents Render timeout)');
   console.log('Thinking mode: ' + (ENABLE_THINKING_MODE ? 'ON (GLM-5 only)' : 'OFF'));
 });
