@@ -17,17 +17,17 @@ app.use(express.json({ limit: '10mb' }));
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY  = process.env.NIM_API_KEY;
 
-const SHOW_REASONING       = true;
-const ENABLE_THINKING_MODE = true;
+const SHOW_REASONING = true;
 
-// Render proxy gives up if no response headers arrive within ~10s.
-// We now send SSE headers FIRST, then call NIM — so Render sees a response immediately.
-const AXIOS_TIMEOUT_MS = 55000; // 55s — safely under Render's 60s request limit
+// thinking: true is GLM-5 only AND only on the FIRST turn of a conversation.
+// On follow-up turns the context is already 1700+ tokens — enabling thinking
+// causes NIM's backend to time out and return "No response from provider" 502.
+const ENABLE_THINKING_FIRST_TURN_ONLY = true;
 
-// Ping interval to keep the SSE connection alive while NIM is thinking
-const SSE_KEEPALIVE_MS = 10000;
+const AXIOS_TIMEOUT_MS = 55000; // 55s — under Render's 60s hard limit
+const SSE_KEEPALIVE_MS = 10000; // ping every 10s to keep connection alive
 
-// ── ROLEPLAY GREETING (GLM-5 / Sabrina) ──────────────────────────────────────
+// ── ROLEPLAY GREETING (GLM-5 / Sabrina — first turn only) ────────────────────
 const ROLEPLAY_GREETING = [
   "*Four months. One hundred and twenty-three days of texts that ran past midnight, voice notes tucked between flights and studio sessions. She'd memorized the rhythm of his replies — lowercase when he was tired, a specific emoji when he was pretending not to laugh.*",
 
@@ -90,6 +90,10 @@ const ROLEPLAY_GREETING = [
   "*And for the first time in a long time, Sabrina felt like she was exactly where she was supposed to be.*"
 ].join('\n\n');
 
+// Short summary used to REPLACE the full greeting in history on turn 2+.
+// Saves ~940 tokens per message — this is the main fix for the 502 on turn 2.
+const GREETING_SUMMARY = '*[Sabrina arrived at his apartment in disguise, removed her wig, and they settled on his couch watching a penguin documentary together.]*';
+
 // ── MODEL MAPPING ─────────────────────────────────────────────────────────────
 const MODEL_MAPPING = {
   'gpt-3.5-turbo':   'nvidia/llama-3.1-nemotron-ultra-253b-v1',
@@ -123,21 +127,42 @@ app.get('/v1/models', (req, res) => {
 function resolveModel(model) {
   if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
   const ml = model.toLowerCase();
-  if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b')) {
+  if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b'))
     return 'meta/llama-3.1-405b-instruct';
-  }
-  if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b')) {
+  if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b'))
     return 'meta/llama-3.1-70b-instruct';
-  }
-  return model; // pass through as-is
+  return model;
 }
 
-function injectRoleplayGreeting(messages, requestedModel) {
+// Detect whether this is the very first user turn (no prior assistant messages
+// from the actual conversation — not counting our injected greeting).
+function isFirstTurn(messages) {
+  return !messages.some(m => m.role === 'assistant');
+}
+
+// On first turn: inject the full greeting before user's message.
+// On follow-up turns: replace the full greeting with a short summary
+// so NIM doesn't receive 964 extra tokens every single message.
+function processMessages(messages, requestedModel) {
   if (!GLM5_MODELS.includes(requestedModel)) return messages;
-  if (messages.some(m => m.role === 'assistant')) return messages;
-  const sys    = messages.filter(m => m.role === 'system');
-  const nonSys = messages.filter(m => m.role !== 'system');
-  return [...sys, { role: 'assistant', content: ROLEPLAY_GREETING }, ...nonSys];
+
+  const firstTurn = isFirstTurn(messages);
+  const sys       = messages.filter(m => m.role === 'system');
+  const nonSys    = messages.filter(m => m.role !== 'system');
+
+  if (firstTurn) {
+    // First turn — inject the full greeting
+    return [...sys, { role: 'assistant', content: ROLEPLAY_GREETING }, ...nonSys];
+  }
+
+  // Follow-up turns — replace any occurrence of the full greeting with summary
+  // so the history stays compact and NIM doesn't choke on 1700+ tokens
+  return [...sys, ...nonSys].map(m => {
+    if (m.role === 'assistant' && m.content && m.content.length > 500) {
+      return { ...m, content: GREETING_SUMMARY };
+    }
+    return m;
+  });
 }
 
 function flushBuffer(buffer, res) {
@@ -149,37 +174,42 @@ function flushBuffer(buffer, res) {
   });
 }
 
+// Call NIM with retry — on 502 retry once without thinking mode
+async function callNIM(nimRequest, retrying) {
+  const req = Object.assign({}, nimRequest);
+  if (retrying) {
+    delete req.extra_body; // disable thinking mode on retry
+    console.log('[retry] Retrying without thinking mode');
+  }
+  return axios.post(`${NIM_API_BASE}/chat/completions`, req, {
+    headers: { Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
+    responseType: 'stream',
+    timeout: AXIOS_TIMEOUT_MS
+  });
+}
+
 // ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
 app.post('/v1/chat/completions', async (req, res) => {
 
-  // ── STEP 1: Send SSE headers IMMEDIATELY ─────────────────────────────────
-  // This is the 502 fix. Render's proxy requires response headers within ~10s.
-  // If we wait for NIM to respond before setting headers, we always risk 502.
-  // By setting headers first, Render sees a live connection right away.
+  // Send SSE headers FIRST — Render's proxy needs headers within ~10s
+  // or it returns 502 before NIM even has a chance to respond
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  // ── STEP 2: Start keepalive pings immediately ─────────────────────────────
-  // Keeps Render's proxy from closing the connection while NIM cold-starts.
+  // Start keepalive pings immediately to hold the connection open
   const keepAlive = setInterval(() => {
     if (!res.writableEnded) res.write(': ping\n\n');
   }, SSE_KEEPALIVE_MS);
 
-  // ── Helper to cleanly close with an error event ───────────────────────────
   function sendError(message, code) {
     clearInterval(keepAlive);
     if (!res.writableEnded) {
-      // Send error as a valid SSE data event so Janitor AI can display it
       const errPayload = JSON.stringify({
         id: 'chatcmpl-err',
         object: 'chat.completion.chunk',
-        choices: [{
-          index: 0,
-          delta: { role: 'assistant', content: `\n\n[Error ${code}: ${message}]` },
-          finish_reason: 'stop'
-        }]
+        choices: [{ index: 0, delta: { role: 'assistant', content: '\n\n[Error ' + code + ': ' + message + ']' }, finish_reason: 'stop' }]
       });
       res.write('data: ' + errPayload + '\n\n');
       res.write('data: [DONE]\n\n');
@@ -187,95 +217,97 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
   }
 
-  try {
-    const { model, messages, temperature, max_tokens } = req.body;
-
-    // Input validation
-    if (!model || typeof model !== 'string') {
-      return sendError('Missing or invalid model field', 400);
-    }
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return sendError('Missing or invalid messages field', 400);
-    }
-
-    const nimModel          = resolveModel(model);
-    const processedMessages = injectRoleplayGreeting(messages, model);
-
-    const nimRequest = {
-      model: nimModel,
-      messages: processedMessages,
-      temperature: temperature || 0.6,
-      max_tokens: max_tokens || 4096,
-      stream: true
-    };
-
-    if (ENABLE_THINKING_MODE && GLM5_MODELS.includes(nimModel)) {
-      nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
-    }
-
-    // ── STEP 3: Call NIM — headers are already sent so no 502 risk ───────────
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
-      headers: { Authorization: `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-      responseType: 'stream',
-      timeout: AXIOS_TIMEOUT_MS
-    });
-
+  function pipeStream(nimResponse, onError) {
     let buffer = '';
     let reasoningStarted = false;
 
-    response.data.on('data', (chunk) => {
+    nimResponse.data.on('data', (chunk) => {
       buffer += chunk.toString();
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
       lines.forEach(line => {
         if (!line.startsWith('data: ')) return;
-
-        if (line.includes('[DONE]')) {
-          res.write('data: [DONE]\n\n');
-          return;
-        }
-
+        if (line.includes('[DONE]')) { res.write('data: [DONE]\n\n'); return; }
         try {
           const data = JSON.parse(line.slice(6));
-
           if (!data.choices || !data.choices[0] || !data.choices[0].delta) {
             res.write('data: ' + JSON.stringify(data) + '\n\n');
             return;
           }
-
           const reasoning = data.choices[0].delta.reasoning_content;
           const content   = data.choices[0].delta.content;
-
           if (SHOW_REASONING) {
             let combined = '';
             if (reasoning && !reasoningStarted) { combined = '🤔 ' + reasoning; reasoningStarted = true; }
             else if (reasoning)                 { combined = reasoning; }
             if (content && reasoningStarted)    { combined += '\n\n' + content; reasoningStarted = false; }
             else if (content)                   { combined += content; }
-            if (combined) {
-              data.choices[0].delta.content = combined;
-              delete data.choices[0].delta.reasoning_content;
-            }
+            if (combined) { data.choices[0].delta.content = combined; delete data.choices[0].delta.reasoning_content; }
           } else {
             data.choices[0].delta.content = content || '';
             delete data.choices[0].delta.reasoning_content;
           }
-
           res.write('data: ' + JSON.stringify(data) + '\n\n');
-        } catch (_) {
-          res.write(line + '\n\n');
-        }
+        } catch (_) { res.write(line + '\n\n'); }
       });
     });
 
-    response.data.on('end', () => {
+    nimResponse.data.on('end', () => {
       clearInterval(keepAlive);
       flushBuffer(buffer, res);
       if (!res.writableEnded) res.end();
     });
 
-    response.data.on('error', (err) => {
+    nimResponse.data.on('error', onError);
+  }
+
+  try {
+    const { model, messages, temperature, max_tokens } = req.body;
+
+    if (!model || typeof model !== 'string')
+      return sendError('Missing or invalid model field', 400);
+    if (!messages || !Array.isArray(messages) || messages.length === 0)
+      return sendError('Missing or invalid messages field', 400);
+
+    const nimModel          = resolveModel(model);
+    const processedMessages = processMessages(messages, model);
+    const firstTurn         = isFirstTurn(messages);
+
+    const nimRequest = {
+      model: nimModel,
+      messages: processedMessages,
+      temperature: temperature || 0.6,
+      max_tokens: max_tokens || 2048, // reduced from 4096 — shorter outputs = faster = fewer 502s
+      stream: true
+    };
+
+    // Only enable thinking mode on the VERY FIRST turn.
+    // On turn 2+ the context is already ~1700+ tokens; thinking mode pushes NIM
+    // over its internal timeout limit → "No response from provider" 502.
+    if (ENABLE_THINKING_FIRST_TURN_ONLY && GLM5_MODELS.includes(nimModel) && firstTurn) {
+      nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+    }
+
+    let nimResponse;
+    try {
+      nimResponse = await callNIM(nimRequest, false);
+    } catch (firstErr) {
+      // On 502 from NIM, retry once without thinking mode
+      if (firstErr.response && firstErr.response.status === 502) {
+        console.log('[retry] Got 502 from NIM, retrying without thinking mode...');
+        try {
+          nimResponse = await callNIM(nimRequest, true);
+        } catch (retryErr) {
+          const code = retryErr.response ? retryErr.response.status : 500;
+          return sendError('NIM unavailable after retry. Please try again shortly.', code);
+        }
+      } else {
+        throw firstErr; // not a 502, let the outer catch handle it
+      }
+    }
+
+    pipeStream(nimResponse, (err) => {
       console.error('[stream error]', err.message);
       sendError(err.message, 500);
     });
@@ -303,5 +335,5 @@ app.all('*', (req, res) => {
 app.listen(PORT, () => {
   console.log('OpenAI → NVIDIA NIM Proxy on port ' + PORT);
   console.log('Health: http://localhost:' + PORT + '/health');
-  console.log('Thinking mode: ' + (ENABLE_THINKING_MODE ? 'ON (GLM-5 only)' : 'OFF'));
+  console.log('Thinking mode: first turn only (GLM-5)');
 });
