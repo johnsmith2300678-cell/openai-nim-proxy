@@ -158,12 +158,16 @@ app.post('/v1/chat/completions', async (req, res) => {
       finalMessages = injectForGLM5(messages);
     }
 
+    // Force streaming for GLM-5 — prevents 504 by sending data immediately
+    // instead of waiting for the full response to generate
+    const useStream = nimModel === 'z-ai/glm5' ? true : (stream || false);
+
     const nimRequest = {
       model: nimModel,
       messages: finalMessages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
-      stream: stream || false
+      max_tokens: max_tokens || 4096,
+      stream: useStream
     };
 
     if (ENABLE_THINKING_MODE) {
@@ -175,13 +179,27 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: stream ? 'stream' : 'json'
+      responseType: useStream ? 'stream' : 'json',
+      timeout: 60000
     });
 
-    if (stream) {
+    // Keep-alive ping every 20s so Render doesn't kill the connection
+    let keepAliveInterval = null;
+    if (useStream) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
+      keepAliveInterval = setInterval(() => {
+        if (!res.writableEnded) res.write(': ping\n\n');
+      }, 20000);
+    }
+
+    if (useStream) {
+      if (!keepAliveInterval) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+      }
 
       let buffer = '';
       let reasoningStarted = false;
@@ -238,8 +256,12 @@ app.post('/v1/chat/completions', async (req, res) => {
         });
       });
 
-      response.data.on('end', () => res.end());
+      response.data.on('end', () => {
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+        res.end();
+      });
       response.data.on('error', (err) => {
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
         console.error('Stream error:', err);
         res.end();
       });
