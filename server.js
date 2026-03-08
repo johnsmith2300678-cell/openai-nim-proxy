@@ -176,6 +176,58 @@ app.get('/v1/models', (req, res) => {
   });
 });
 
+// ── THINKING GUIDANCE SYSTEM PROMPT (injected for GLM-5 only) ────────────────
+// This hidden system message is prepended BEFORE the user's character card and
+// lorebook. It instructs GLM-5 on HOW to use its thinking phase — what to
+// consider, how to reason through character and scene, and what standards to
+// hold the response to. It doesn't replace the lorebook; it teaches the model
+// how to actually use it during the reasoning phase.
+const THINKING_GUIDANCE = `You are an expert creative writer and method actor specializing in deep character roleplay. Before writing any response, you MUST use your thinking process to reason carefully through the following steps:
+
+**STEP 1 — CHARACTER INTERNALIZATION**
+Read the character card and lorebook thoroughly. Ask yourself:
+- What does this character want right now, in this exact moment?
+- What are they afraid of? What are they hiding, even from themselves?
+- How do they speak? What words would they NEVER say? What's their rhythm?
+- What is the subtext beneath everything they say out loud?
+
+**STEP 2 — SCENE AWARENESS**
+Before writing a word of response, map the scene:
+- What is the physical environment? What details can be used?
+- What is the emotional temperature of this moment?
+- What just happened? What does the other person's last message reveal about their state?
+- What is NOT being said that is louder than what is?
+
+**STEP 3 — RESPONSE ARCHITECTURE**
+Plan the response before writing it:
+- What is the ONE emotional truth this response needs to land?
+- Where does action go? Where does dialogue go? Where does internal thought go?
+- How long should this be? (Match the weight of the moment — don't over-write light moments, don't under-write heavy ones)
+- What's the LAST LINE? Work backwards from it.
+
+**STEP 4 — DIALOGUE QUALITY CHECK**
+Every line of spoken dialogue must pass these tests:
+- Does it sound like THIS character and not a generic person?
+- Does it reveal character without stating character?
+- Is there subtext — something meant beneath what's said?
+- Does it move the scene forward or deepen the emotional state?
+- Would a real person actually say this, in this moment, in this way?
+
+**STEP 5 — PROSE QUALITY**
+For action and description:
+- Show physical sensation and micro-detail, not vague emotion
+- Use the environment — objects, sounds, light, proximity — to carry feeling
+- Vary sentence rhythm intentionally. Short sentences land punches. Longer ones breathe and drift.
+- Never name an emotion directly if a physical detail can show it instead
+
+**STEP 6 — FINAL REVIEW**
+Before committing to the response, ask:
+- Does this feel human and specific, or does it feel like generated text?
+- Is every sentence earning its place?
+- Does the ending land — does it leave something open, something felt?
+
+Only after completing ALL six steps should you write the actual response. The response itself should contain NO meta-commentary, NO out-of-character text, NO summaries of what you're doing. Pure in-character prose and dialogue only.`;
+
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function resolveModel(model) {
   if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
@@ -197,19 +249,30 @@ function processMessages(messages, requestedModel) {
   const sys    = messages.filter(m => m.role === 'system');
   const nonSys = messages.filter(m => m.role !== 'system');
 
+  // Prepend the thinking guidance as the very first system message.
+  // This means GLM-5 reads the HOW-TO-THINK instructions first,
+  // then the character card/lorebook — so it knows what to do with
+  // the character information when it enters its reasoning phase.
+  const thinkingGuidanceMsg = { role: 'system', content: THINKING_GUIDANCE };
+
   if (isFirstTurn(messages)) {
-    // First turn — inject full greeting so Janitor AI sees it as the opening
-    return [...sys, { role: 'assistant', content: ROLEPLAY_GREETING }, ...nonSys];
+    return [
+      thinkingGuidanceMsg,
+      ...sys,
+      { role: 'assistant', content: ROLEPLAY_GREETING },
+      ...nonSys
+    ];
   }
 
-  // Turn 2+ — compress any long assistant message (the greeting) to summary
-  // so NIM doesn't have to process 964 tokens of greeting on every follow-up
-  return [...sys, ...nonSys].map(m => {
+  // Turn 2+ — compress the long greeting to summary to keep context manageable
+  const compressedMsgs = [...sys, ...nonSys].map(m => {
     if (m.role === 'assistant' && m.content && m.content.length > 500) {
       return { ...m, content: GREETING_SUMMARY };
     }
     return m;
   });
+
+  return [thinkingGuidanceMsg, ...compressedMsgs];
 }
 
 function flushBuffer(buffer, res) {
@@ -222,44 +285,33 @@ function flushBuffer(buffer, res) {
 }
 
 // ── THINKING BLOCK FORMATTER ─────────────────────────────────────────────────
-// Takes the full accumulated reasoning string and sends it as one clean SSE
-// chunk formatted as a readable thinking block — header, the thought, divider.
-// This runs once per response, right before the actual reply starts flowing.
+// Formats GLM-5's raw reasoning into a clean, readable thinking section.
+// Runs once per response, right before the actual reply starts flowing.
 function sendThinkingBlock(reasoningText, writeFn) {
   if (!reasoningText || !reasoningText.trim()) return;
 
-  // Clean up the raw reasoning — strip leading/trailing whitespace,
-  // collapse runs of blank lines down to one, tidy up any stray formatting
   const cleaned = reasoningText
     .trim()
-    .replace(/\n{3,}/g, '\n\n')   // max one blank line between thoughts
-    .replace(/^\s+/gm, '')          // remove leading spaces on each line
+    .replace(/\n{3,}/g, '\n\n')  // collapse excessive blank lines
+    .replace(/^[ \t]+/gm, '')      // strip leading spaces per line
     .trim();
 
-  // Format as a visible thinking section Janitor AI will render cleanly
+  // Render as a collapsible-style blockquote Janitor AI displays cleanly
+  const lines = cleaned.split('\n').map(l => '> ' + l);
   const block = [
-    '> 💭 **Thinking...**',
-    '>',
-    cleaned
-      .split('\n')
-      .map(line => '> ' + line)   // blockquote every line so it renders as a section
-      .join('\n'),
-    '>',
-    '> ---',
-    ''                            // blank line after the divider before the reply
+    '> 💭 *Thinking...*',
+    '> ',
+    ...lines,
+    '> ',
+    '> ─────────────────',
+    '',   // blank line separates thinking from the actual response
   ].join('\n');
 
-  const payload = {
+  writeFn({
     id: 'chatcmpl-thinking-' + Date.now(),
     object: 'chat.completion.chunk',
-    choices: [{
-      index: 0,
-      delta: { role: 'assistant', content: block },
-      finish_reason: null
-    }]
-  };
-
-  writeFn(payload);
+    choices: [{ index: 0, delta: { role: 'assistant', content: block }, finish_reason: null }]
+  });
 }
 
 // ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
@@ -308,8 +360,8 @@ app.post('/v1/chat/completions', async (req, res) => {
     const nimRequest = {
       model:       nimModel,
       messages:    processedMessages,
-      temperature: temperature || 0.6,
-      max_tokens:  max_tokens || 2048,
+      temperature: temperature || 0.55,
+      max_tokens:  max_tokens || 4096,
       stream:      true
     };
 
