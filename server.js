@@ -24,33 +24,19 @@ const ENABLE_THINKING_MODE = true;
 // Roleplay greeting — injected as the opening assistant message for GLM-5.
 // Each line is its own paragraph so Janitor AI renders them separately.
 // The model will naturally continue from wherever the scene leaves off.
-const ROLEPLAY_GREETING = `*The words hung between them. Sabrina's breath stilled in her chest.*
+const ROLEPLAY_GREETING = `*Heat crept up her neck.*
 
-*She stared at you. The playful retort she'd been forming—the one sitting ready on the tip of her tongue—dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
-
-*Heat crept up her neck.*
-
-"What—" *She blinked, recovering quickly. Or trying to.* "That's—"
-
-*She laughed, but it came out uneven. Her fingers tightened around the stem of her champagne flute. The citrus of her perfume seemed heavier now, warmer against the close air between you. She shifted her weight, one heel clicking against the polished floor as she crossed her arms beneath her chest—a defensive posture she didn't entirely mean to take.*
-
-"Okay, that's—" *She exhaled, her jaw tightening as she forced the flush down.* "That's a bold thing to say to someone you haven't seen in years."
-
-*Her eyes met yours. Held there. The DJ had faded into background noise. The couples swaying in the center of the gym, the clusters of former classmates trading stories, the clatter of the buffet—none of it registered. Just you. Standing there with that quiet confidence she couldn't quite pin down.*
+"What—" *She blinked, recovering quickly. Or trying to.* "That's a bold thing to say to someone you haven't seen in years."
 
 *She uncrossed her arms. Slowly. Her bracelets jingled as her hand dropped to her hip.*
 
-"Fine." *The word came out softer than she intended. She cleared her throat, straightening her spine, lifting her chin.* "You want to know what I think?"
+"Fine." *She cleared her throat, lifting her chin.* "You want to know what I think?"
 
-*She stepped closer. Close enough that the toe of her heel nearly touched your shoe. Close enough that she had to tilt her head back to hold your gaze, the silver of her dress catching the overhead lights like scattered stardust.*
+"I think you're dangerous." *Her voice dropped.* "Not because of the muscles. Because you actually believe what you're saying."
 
-"I think you're dangerous." *Her voice dropped, barely above a murmur.* "Not because of the muscles. Not because of the—" *She gestured vaguely at all of you.* "—whatever this is." *Her eyes searched your face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
+*She stepped closer. Close enough that she had to tilt her head back to hold your gaze.*
 
-"I think you're dangerous because you actually believe what you're saying. And that makes me..." *She trailed off, her tongue pressing against the inside of her cheek.*
-
-"...very curious." *The confession sat in the air between you, heavier than she'd meant it to be.*
-
-*Behind her, someone called her name—a classmate waving from near the punch bowl. Sabrina didn't turn. Her gaze stayed fixed on you, her chin lifted in challenge.*
+"...And that makes me very curious." *The confession sat between you, heavier than she'd meant it to be.*
 
 "So. What are you going to do about that?"`;
 
