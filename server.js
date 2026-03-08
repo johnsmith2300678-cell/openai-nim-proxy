@@ -21,7 +21,9 @@ const SHOW_REASONING = true;
 const ENABLE_THINKING_MODE = true;
 // ------------------------------------------------------------------
 
-// Roleplay greeting dialogue for GLM-5 (Sabrina character)
+// Roleplay greeting — injected as the opening assistant message for GLM-5.
+// Each line is its own paragraph so Janitor AI renders them separately.
+// The model will naturally continue from wherever the scene leaves off.
 const ROLEPLAY_GREETING = `*The words hung between them. Sabrina's breath stilled in her chest.*
 
 *She stared at you. The playful retort she'd been forming—the one sitting ready on the tip of her tongue—dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
@@ -45,6 +47,7 @@ const ROLEPLAY_GREETING = `*The words hung between them. Sabrina's breath stille
 "I think you're dangerous." *Her voice dropped, barely above a murmur.* "Not because of the muscles. Not because of the—" *She gestured vaguely at all of you.* "—whatever this is." *Her eyes searched your face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
 
 "I think you're dangerous because you actually believe what you're saying. And that makes me..." *She trailed off, her tongue pressing against the inside of her cheek.*
+
 "...very curious." *The confession sat in the air between you, heavier than she'd meant it to be.*
 
 *Behind her, someone called her name—a classmate waving from near the punch bowl. Sabrina didn't turn. Her gaze stayed fixed on you, her chin lifted in challenge.*
@@ -88,14 +91,15 @@ app.get('/v1/models', (req, res) => {
   });
 });
 
-// Helper: inject roleplay greeting for GLM-5 if no prior assistant message exists
+// Inject the roleplay greeting as the first assistant message for GLM-5,
+// but only when there is no existing assistant message in the history yet.
+// Preserves all system messages (character card, lorebook) before the greeting.
 function injectRoleplayGreeting(messages, targetModel) {
   if (targetModel !== 'glm-5' && targetModel !== 'z-ai/glm5') return messages;
 
   const hasAssistantMessage = messages.some(m => m.role === 'assistant');
   if (hasAssistantMessage) return messages;
 
-  // Insert greeting as the first assistant message after any system messages
   const systemMessages = messages.filter(m => m.role === 'system');
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
 
@@ -117,25 +121,18 @@ app.post('/v1/chat/completions', async (req, res) => {
     if (!nimModel) {
       try {
         // Attempt to verify if the custom model ID exists on NIM
-        const verifyRes = await axios.post(
-          `${NIM_API_BASE}/chat/completions`,
-          {
-            model: model,
-            messages: [{ role: 'user', content: 'test' }],
-            max_tokens: 1
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${NIM_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            validateStatus: (status) => status < 500
+        await axios.post(`${NIM_API_BASE}/chat/completions`, {
+          model: model,
+          messages: [{ role: 'user', content: 'test' }],
+          max_tokens: 1
+        }, {
+          headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
+          validateStatus: (status) => status < 500
+        }).then(apiRes => {
+          if (apiRes.status >= 200 && apiRes.status < 300) {
+            nimModel = model;
           }
-        );
-
-        if (verifyRes.status >= 200 && verifyRes.status < 300) {
-          nimModel = model;
-        }
+        });
       } catch (e) {
         // Ignore errors during verification
       }
@@ -227,7 +224,11 @@ app.post('/v1/chat/completions', async (req, res) => {
                     delete data.choices[0].delta.reasoning_content;
                   }
                 } else {
-                  data.choices[0].delta.content = content || '';
+                  if (content) {
+                    data.choices[0].delta.content = content;
+                  } else {
+                    data.choices[0].delta.content = '';
+                  }
                   delete data.choices[0].delta.reasoning_content;
                 }
               }
@@ -253,7 +254,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         created: Math.floor(Date.now() / 1000),
         model: model,
         choices: response.data.choices.map(choice => {
-          let fullContent = (choice.message && choice.message.content) ? choice.message.content : '';
+          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
 
           if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
             fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
