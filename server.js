@@ -221,6 +221,47 @@ function flushBuffer(buffer, res) {
   });
 }
 
+// ── THINKING BLOCK FORMATTER ─────────────────────────────────────────────────
+// Takes the full accumulated reasoning string and sends it as one clean SSE
+// chunk formatted as a readable thinking block — header, the thought, divider.
+// This runs once per response, right before the actual reply starts flowing.
+function sendThinkingBlock(reasoningText, writeFn) {
+  if (!reasoningText || !reasoningText.trim()) return;
+
+  // Clean up the raw reasoning — strip leading/trailing whitespace,
+  // collapse runs of blank lines down to one, tidy up any stray formatting
+  const cleaned = reasoningText
+    .trim()
+    .replace(/\n{3,}/g, '\n\n')   // max one blank line between thoughts
+    .replace(/^\s+/gm, '')          // remove leading spaces on each line
+    .trim();
+
+  // Format as a visible thinking section Janitor AI will render cleanly
+  const block = [
+    '> 💭 **Thinking...**',
+    '>',
+    cleaned
+      .split('\n')
+      .map(line => '> ' + line)   // blockquote every line so it renders as a section
+      .join('\n'),
+    '>',
+    '> ---',
+    ''                            // blank line after the divider before the reply
+  ].join('\n');
+
+  const payload = {
+    id: 'chatcmpl-thinking-' + Date.now(),
+    object: 'chat.completion.chunk',
+    choices: [{
+      index: 0,
+      delta: { role: 'assistant', content: block },
+      finish_reason: null
+    }]
+  };
+
+  writeFn(payload);
+}
+
 // ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
 app.post('/v1/chat/completions', async (req, res) => {
 
@@ -293,7 +334,14 @@ app.post('/v1/chat/completions', async (req, res) => {
     );
 
     let buffer = '';
-    let reasoningStarted = false;
+
+    // Collect the full reasoning block before sending anything to the client.
+    // Streaming reasoning token-by-token mid-response made it show up as
+    // a garbled mess mixed into the dialogue. Instead we hold it, then send
+    // it as one clean formatted block the moment actual content starts flowing.
+    let reasoningBuffer   = '';  // accumulates all reasoning_content tokens
+    let reasoningFlushed  = false; // true once we've sent the thinking block
+    let reasoningActive   = false; // true while NIM is still in thinking phase
 
     nimResponse.data.on('data', (chunk) => {
       buffer += chunk.toString();
@@ -303,6 +351,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       lines.forEach(line => {
         if (!line.startsWith('data: ')) return;
         if (line.includes('[DONE]')) {
+          // If thinking never transitioned to content (edge case), flush now
+          if (SHOW_REASONING && reasoningBuffer && !reasoningFlushed) {
+            sendThinkingBlock(reasoningBuffer, data => res.write('data: ' + JSON.stringify(data) + '\n\n'));
+          }
           res.write('data: [DONE]\n\n');
           return;
         }
@@ -318,21 +370,32 @@ app.post('/v1/chat/completions', async (req, res) => {
           const content   = data.choices[0].delta.content;
 
           if (SHOW_REASONING) {
-            let combined = '';
-            if (reasoning && !reasoningStarted) { combined = '🤔 ' + reasoning; reasoningStarted = true; }
-            else if (reasoning)                 { combined = reasoning; }
-            if (content && reasoningStarted)    { combined += '\n\n' + content; reasoningStarted = false; }
-            else if (content)                   { combined += content; }
-            if (combined) {
-              data.choices[0].delta.content = combined;
-              delete data.choices[0].delta.reasoning_content;
+            // Phase 1 — NIM is thinking: accumulate, send nothing yet
+            if (reasoning) {
+              reasoningBuffer += reasoning;
+              reasoningActive  = true;
+              return; // hold — don't forward to client yet
             }
-          } else {
-            data.choices[0].delta.content = content || '';
-            delete data.choices[0].delta.reasoning_content;
+
+            // Phase 2 — NIM just switched from thinking to writing:
+            // flush the complete thinking block first, then let content flow
+            if (content && reasoningActive && !reasoningFlushed) {
+              reasoningFlushed = true;
+              reasoningActive  = false;
+              sendThinkingBlock(
+                reasoningBuffer,
+                payload => res.write('data: ' + JSON.stringify(payload) + '\n\n')
+              );
+            }
           }
 
-          res.write('data: ' + JSON.stringify(data) + '\n\n');
+          // Forward the actual content token as normal
+          if (content !== undefined && content !== null) {
+            delete data.choices[0].delta.reasoning_content;
+            data.choices[0].delta.content = content;
+            res.write('data: ' + JSON.stringify(data) + '\n\n');
+          }
+
         } catch (_) {
           res.write(line + '\n\n');
         }
