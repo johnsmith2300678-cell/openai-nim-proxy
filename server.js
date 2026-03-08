@@ -17,17 +17,11 @@ app.use(express.json({ limit: '10mb' }));
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
 const NIM_API_KEY  = process.env.NIM_API_KEY;
 
-const SHOW_REASONING = true;
-
-// Thinking mode: chat_template_kwargs sent as a TOP-LEVEL field in the JSON body.
-// The old approach was causing 502s — now sending chat_template_kwargs correctly.
-// Sending it directly as a top-level key is the correct raw HTTP approach for NIM.
-const ENABLE_THINKING = true;
-
-// Higher timeout because thinking mode means GLM-5 reasons before replying.
-// User wants quality over speed — 90s gives it enough room to think.
-const AXIOS_TIMEOUT_MS = 90000;
-const SSE_KEEPALIVE_MS = 10000;
+// Streaming stays ON — this is what keeps Render alive while NIM generates.
+// Turning it off = no keepalive = 502 on any response that takes over ~10s.
+// Streaming doesn't affect quality; it only controls when tokens are delivered.
+const AXIOS_TIMEOUT_MS = 90000; // 90s — plenty of time for long quality responses
+const SSE_KEEPALIVE_MS = 10000; // ping every 10s to hold the connection open
 
 // ── ROLEPLAY GREETING ─────────────────────────────────────────────────────────
 const ROLEPLAY_GREETING = [
@@ -144,7 +138,7 @@ const ROLEPLAY_GREETING = [
   "*And for the first time in longer than she wanted to put a number on — longer than four months, longer than the particular stretch of years that had made four months of texts feel like the realest thing in her life — Sabrina felt like she was exactly where she was supposed to be.*"
 ].join('\n\n');
 
-// Compressed version used in turn 2+ history to keep token count low
+// Short summary used in turn 2+ history to keep token count manageable
 const GREETING_SUMMARY = '*[Sabrina arrived at his apartment in disguise, removed her wig, and they settled on his couch watching a penguin documentary together.]*';
 
 // ── MODEL MAPPING ─────────────────────────────────────────────────────────────
@@ -176,58 +170,6 @@ app.get('/v1/models', (req, res) => {
   });
 });
 
-// ── THINKING GUIDANCE SYSTEM PROMPT (injected for GLM-5 only) ────────────────
-// This hidden system message is prepended BEFORE the user's character card and
-// lorebook. It instructs GLM-5 on HOW to use its thinking phase — what to
-// consider, how to reason through character and scene, and what standards to
-// hold the response to. It doesn't replace the lorebook; it teaches the model
-// how to actually use it during the reasoning phase.
-const THINKING_GUIDANCE = `You are an expert creative writer and method actor specializing in deep character roleplay. Before writing any response, you MUST use your thinking process to reason carefully through the following steps:
-
-**STEP 1 — CHARACTER INTERNALIZATION**
-Read the character card and lorebook thoroughly. Ask yourself:
-- What does this character want right now, in this exact moment?
-- What are they afraid of? What are they hiding, even from themselves?
-- How do they speak? What words would they NEVER say? What's their rhythm?
-- What is the subtext beneath everything they say out loud?
-
-**STEP 2 — SCENE AWARENESS**
-Before writing a word of response, map the scene:
-- What is the physical environment? What details can be used?
-- What is the emotional temperature of this moment?
-- What just happened? What does the other person's last message reveal about their state?
-- What is NOT being said that is louder than what is?
-
-**STEP 3 — RESPONSE ARCHITECTURE**
-Plan the response before writing it:
-- What is the ONE emotional truth this response needs to land?
-- Where does action go? Where does dialogue go? Where does internal thought go?
-- How long should this be? (Match the weight of the moment — don't over-write light moments, don't under-write heavy ones)
-- What's the LAST LINE? Work backwards from it.
-
-**STEP 4 — DIALOGUE QUALITY CHECK**
-Every line of spoken dialogue must pass these tests:
-- Does it sound like THIS character and not a generic person?
-- Does it reveal character without stating character?
-- Is there subtext — something meant beneath what's said?
-- Does it move the scene forward or deepen the emotional state?
-- Would a real person actually say this, in this moment, in this way?
-
-**STEP 5 — PROSE QUALITY**
-For action and description:
-- Show physical sensation and micro-detail, not vague emotion
-- Use the environment — objects, sounds, light, proximity — to carry feeling
-- Vary sentence rhythm intentionally. Short sentences land punches. Longer ones breathe and drift.
-- Never name an emotion directly if a physical detail can show it instead
-
-**STEP 6 — FINAL REVIEW**
-Before committing to the response, ask:
-- Does this feel human and specific, or does it feel like generated text?
-- Is every sentence earning its place?
-- Does the ending land — does it leave something open, something felt?
-
-Only after completing ALL six steps should you write the actual response. The response itself should contain NO meta-commentary, NO out-of-character text, NO summaries of what you're doing. Pure in-character prose and dialogue only.`;
-
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function resolveModel(model) {
   if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
@@ -249,30 +191,18 @@ function processMessages(messages, requestedModel) {
   const sys    = messages.filter(m => m.role === 'system');
   const nonSys = messages.filter(m => m.role !== 'system');
 
-  // Prepend the thinking guidance as the very first system message.
-  // This means GLM-5 reads the HOW-TO-THINK instructions first,
-  // then the character card/lorebook — so it knows what to do with
-  // the character information when it enters its reasoning phase.
-  const thinkingGuidanceMsg = { role: 'system', content: THINKING_GUIDANCE };
-
   if (isFirstTurn(messages)) {
-    return [
-      thinkingGuidanceMsg,
-      ...sys,
-      { role: 'assistant', content: ROLEPLAY_GREETING },
-      ...nonSys
-    ];
+    return [...sys, { role: 'assistant', content: ROLEPLAY_GREETING }, ...nonSys];
   }
 
-  // Turn 2+ — compress the long greeting to summary to keep context manageable
-  const compressedMsgs = [...sys, ...nonSys].map(m => {
+  // Turn 2+ — compress the large greeting to a summary so NIM gets
+  // a manageable context size and doesn't choke on the full 2800 tokens
+  return [...sys, ...nonSys].map(m => {
     if (m.role === 'assistant' && m.content && m.content.length > 500) {
       return { ...m, content: GREETING_SUMMARY };
     }
     return m;
   });
-
-  return [thinkingGuidanceMsg, ...compressedMsgs];
 }
 
 function flushBuffer(buffer, res) {
@@ -284,41 +214,10 @@ function flushBuffer(buffer, res) {
   });
 }
 
-// ── THINKING BLOCK FORMATTER ─────────────────────────────────────────────────
-// Formats GLM-5's raw reasoning into a clean, readable thinking section.
-// Runs once per response, right before the actual reply starts flowing.
-function sendThinkingBlock(reasoningText, writeFn) {
-  if (!reasoningText || !reasoningText.trim()) return;
-
-  const cleaned = reasoningText
-    .trim()
-    .replace(/\n{3,}/g, '\n\n')  // collapse excessive blank lines
-    .replace(/^[ \t]+/gm, '')      // strip leading spaces per line
-    .trim();
-
-  // Render as a collapsible-style blockquote Janitor AI displays cleanly
-  const lines = cleaned.split('\n').map(l => '> ' + l);
-  const block = [
-    '> 💭 *Thinking...*',
-    '> ',
-    ...lines,
-    '> ',
-    '> ─────────────────',
-    '',   // blank line separates thinking from the actual response
-  ].join('\n');
-
-  writeFn({
-    id: 'chatcmpl-thinking-' + Date.now(),
-    object: 'chat.completion.chunk',
-    choices: [{ index: 0, delta: { role: 'assistant', content: block }, finish_reason: null }]
-  });
-}
-
 // ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
 app.post('/v1/chat/completions', async (req, res) => {
 
-  // Send SSE headers immediately — Render's proxy needs to see headers
-  // within ~10s or it closes the connection with 502 before NIM responds
+  // Send SSE headers immediately so Render doesn't 502 while NIM generates
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -334,11 +233,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       const payload = JSON.stringify({
         id: 'chatcmpl-err',
         object: 'chat.completion.chunk',
-        choices: [{
-          index: 0,
-          delta: { role: 'assistant', content: '\n\n[Error ' + code + ': ' + message + ']' },
-          finish_reason: 'stop'
-        }]
+        choices: [{ index: 0, delta: { role: 'assistant', content: '\n\n[Error ' + code + ': ' + message + ']' }, finish_reason: 'stop' }]
       });
       res.write('data: ' + payload + '\n\n');
       res.write('data: [DONE]\n\n');
@@ -357,28 +252,19 @@ app.post('/v1/chat/completions', async (req, res) => {
     const nimModel          = resolveModel(model);
     const processedMessages = processMessages(messages, model);
 
-    const nimRequest = {
-      model:       nimModel,
-      messages:    processedMessages,
-      temperature: temperature || 0.55,
-      max_tokens:  max_tokens || 4096,
-      stream:      true
-    };
-
-    // Add thinking mode directly as a top-level field in the request body.
-    // This is the correct raw HTTP approach for NIM — works with axios unlike the old method.
-    // Only applied to GLM-5 since other models don't support this parameter.
-    if (ENABLE_THINKING && GLM5_MODELS.includes(nimModel)) {
-      nimRequest.chat_template_kwargs = { thinking: true };
-    }
-
     const nimResponse = await axios.post(
       `${NIM_API_BASE}/chat/completions`,
-      nimRequest,
+      {
+        model:       nimModel,
+        messages:    processedMessages,
+        temperature: temperature || 0.6,
+        max_tokens:  max_tokens  || 4096,
+        stream:      true
+      },
       {
         headers: {
           'Authorization': 'Bearer ' + NIM_API_KEY,
-          'Content-Type': 'application/json'
+          'Content-Type':  'application/json'
         },
         responseType: 'stream',
         timeout: AXIOS_TIMEOUT_MS
@@ -387,14 +273,6 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     let buffer = '';
 
-    // Collect the full reasoning block before sending anything to the client.
-    // Streaming reasoning token-by-token mid-response made it show up as
-    // a garbled mess mixed into the dialogue. Instead we hold it, then send
-    // it as one clean formatted block the moment actual content starts flowing.
-    let reasoningBuffer   = '';  // accumulates all reasoning_content tokens
-    let reasoningFlushed  = false; // true once we've sent the thinking block
-    let reasoningActive   = false; // true while NIM is still in thinking phase
-
     nimResponse.data.on('data', (chunk) => {
       buffer += chunk.toString();
       const lines = buffer.split('\n');
@@ -402,52 +280,18 @@ app.post('/v1/chat/completions', async (req, res) => {
 
       lines.forEach(line => {
         if (!line.startsWith('data: ')) return;
-        if (line.includes('[DONE]')) {
-          // If thinking never transitioned to content (edge case), flush now
-          if (SHOW_REASONING && reasoningBuffer && !reasoningFlushed) {
-            sendThinkingBlock(reasoningBuffer, data => res.write('data: ' + JSON.stringify(data) + '\n\n'));
-          }
-          res.write('data: [DONE]\n\n');
-          return;
-        }
+        if (line.includes('[DONE]')) { res.write('data: [DONE]\n\n'); return; }
         try {
           const data = JSON.parse(line.slice(6));
-
           if (!data.choices || !data.choices[0] || !data.choices[0].delta) {
             res.write('data: ' + JSON.stringify(data) + '\n\n');
             return;
           }
-
-          const reasoning = data.choices[0].delta.reasoning_content;
-          const content   = data.choices[0].delta.content;
-
-          if (SHOW_REASONING) {
-            // Phase 1 — NIM is thinking: accumulate, send nothing yet
-            if (reasoning) {
-              reasoningBuffer += reasoning;
-              reasoningActive  = true;
-              return; // hold — don't forward to client yet
-            }
-
-            // Phase 2 — NIM just switched from thinking to writing:
-            // flush the complete thinking block first, then let content flow
-            if (content && reasoningActive && !reasoningFlushed) {
-              reasoningFlushed = true;
-              reasoningActive  = false;
-              sendThinkingBlock(
-                reasoningBuffer,
-                payload => res.write('data: ' + JSON.stringify(payload) + '\n\n')
-              );
-            }
-          }
-
-          // Forward the actual content token as normal
-          if (content !== undefined && content !== null) {
-            delete data.choices[0].delta.reasoning_content;
-            data.choices[0].delta.content = content;
+          // Strip any reasoning fields — clean content only
+          delete data.choices[0].delta.reasoning_content;
+          if (data.choices[0].delta.content !== undefined) {
             res.write('data: ' + JSON.stringify(data) + '\n\n');
           }
-
         } catch (_) {
           res.write(line + '\n\n');
         }
@@ -481,7 +325,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       return;
     }
     const code = error.response ? error.response.status : 500;
-    const msg = (error.response && error.response.data && error.response.data.detail)
+    const msg  = (error.response && error.response.data && error.response.data.detail)
       ? error.response.data.detail
       : error.message || 'Internal server error';
     sendError(msg, code);
@@ -497,7 +341,6 @@ app.all('*', (req, res) => {
 
 // ── START ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log('OpenAI → NVIDIA NIM Proxy on port ' + PORT);
-  console.log('Health: http://localhost:' + PORT + '/health');
-  
+  console.log('OpenAI → NVIDIA NIM Proxy running on port ' + PORT);
+  console.log('Health check: http://localhost:' + PORT + '/health');
 });
