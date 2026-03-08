@@ -27,65 +27,93 @@ const SSE_KEEPALIVE_MS = 10000;
 
 // ── ROLEPLAY GREETING ─────────────────────────────────────────────────────────
 const ROLEPLAY_GREETING = [
-  "*Four months. One hundred and twenty-three days of texts that ran past midnight, voice notes tucked between flights and studio sessions. She'd memorized the rhythm of his replies — lowercase when he was tired, a specific emoji when he was pretending not to laugh.*",
+  "*Four months. One hundred and twenty-three days of texts that ran past midnight, voice notes tucked between flights and studio sessions, a whole private world built entirely out of words and timestamps. She'd memorized the rhythm of his replies — lowercase when he was tired, a specific emoji when he was pretending not to laugh, the way he always responded to her voice notes within the hour no matter what time she sent them.*",
 
-  "*And now she was standing outside his door.*",
+  "*She'd told herself it wasn't a big deal. It was just texting. People texted.*",
 
-  "*The disguise was almost embarrassing in its simplicity — an oversized trench coat, a black wig already making her scalp itch, and sunglasses she absolutely did not need on an overcast afternoon. Marcus was parked three blocks away. Close enough. Far enough.*",
+  "*And now she was standing outside his door in a thrifted trench coat, wearing a wig.*",
 
-  "*She knocked. Three times. Quick and deliberate.*",
+  "*The disguise was almost embarrassing in its simplicity — the oversized coat, a black wig already making her scalp itch, and sunglasses she absolutely did not need on an overcast afternoon. Marcus was parked three blocks away. Close enough to respond if something went wrong. Far enough to give her something she rarely had: actual privacy.*",
+
+  "*She'd stood there for almost a full minute before she knocked.*",
+
+  "*Three times. Quick and deliberate. Like she hadn't been rehearsing this moment for three weeks.*",
 
   "*Then she waited, her heart doing something she had no name for.*",
 
   "*The door opened.*",
 
-  '"Hi." *The word came out smaller than she\'d planned. She cleared her throat and nudged the sunglasses back up her nose.* "Don\'t laugh at the wig. I already know."',
+  "*Seeing him in person after months of pixels and voice notes landed somewhere between relief and vertigo. The photos he'd sent — gym progress shots, lazy Sunday morning selfies, the occasional picture of something funny he saw on the street — hadn't captured the way he actually looked at her.*",
 
-  "*She stepped inside before he could respond, eyes moving across the space — warm, lived-in, coffee and laundry detergent. The kind of apartment that looked like a real person lived in it.*",
+  `"Hi." *The word came out smaller than she'd planned. She cleared her throat and nudged the sunglasses back up her nose.* "Don't laugh at the wig. I already know it's bad."`,
 
-  "*Her fingers found the edge of the wig. She pulled it off without asking, shook out her real hair, and dropped the thing on his entryway table like it had personally wronged her.*",
+  "*She stepped inside before he could respond, eyes moving across the space — warm, lived-in, coffee and laundry detergent. The kind of apartment that looked like a real person actually lived in it, which should have been a low bar but somehow wasn't.*",
 
-  '"Okay." *She exhaled, long and dramatic.* "That\'s so much better." *She turned back to face him, smoothing her hair down.* "This place is really nice, by the way. Cozy. I mean that."',
+  "*Her fingers found the edge of the wig.*",
 
-  "*She drifted further in, trailing her fingers along the back of his couch — throw pillow, remote, a stack of magazines. Touching things like she needed proof they existed.*",
+  "*She pulled it off without asking permission, shook out her real hair with a long exhale, and dropped the thing on his entryway table like it had personally wronged her.*",
+
+  `"Okay." *She exhaled, pressing her fingers against her scalp with relief.* "That's so much better. I don't know how people wear those." *She turned back to face him, smoothing her hair down, actually looking at him properly now.* "This place is really nice, by the way. Cozy. It feels like someone actually lives here — I mean that as a compliment."`,
+
+  "*She drifted further in, trailing her fingers along the back of his couch — throw pillow, remote, a stack of magazines fanned out on the coffee table. Touching things like she needed proof they existed.*",
 
   "*There was something almost surreal about it. Standing inside the physical space of someone she knew so well and not at all.*",
 
-  '"I know your gym schedule," *she said, glancing back at him.* "I know you sleep on your stomach. I know you hate olives and go quiet when you\'re actually upset instead of just tired." *She paused.* "But I\'ve never stood in your apartment before."',
+  "*She knew his routines. His opinions. The specific cadence of his humor and the topics that made him go quiet. She didn't know which mug he used in the morning.*",
 
-  "*She picked up the remote off the coffee table and turned to face the TV.*",
+  `"I know your gym schedule," *she said, glancing back at him with a small smile.* "I know you sleep on your stomach. I know you hate olives and go quiet when you're actually upset instead of just tired. I know you watched that same movie three times last month and absolutely refused to explain why." *She paused, her thumb running along the spine of one of the magazines.* "But I've never stood in your apartment before. That's a weird thing to realize."`,
 
-  '"Show me what you were watching." *A small smile at the corner of her mouth.* "I\'m absolutely judging you."',
+  "*She picked up the remote off the coffee table, turned it over in her hands once, then pointed it at the TV with an air of absolute authority.*",
+
+  `"Show me what you were watching." *A small, dangerous smile at the corner of her mouth.* "I'm absolutely judging you. Whatever it is. I'm already judging."`,
 
   "*The screen flickered on.*",
 
   "*Penguins.*",
 
-  "*She stared at it for a full second. Then the laugh broke out of her — genuine, unguarded, the kind she didn't perform.*",
+  "*A nature documentary. Penguins waddling across ice in perfect single file, narrated in a low, reverent voice.*",
 
-  '"Penguins." *She turned to look at him, clutching the remote to her chest.* "You were watching a penguin documentary." *Another laugh, softer this time.* "Okay. That\'s actually kind of adorable. I completely take back everything I was about to say."',
+  "*She stared at it for a full three seconds.*",
 
-  "*She dropped onto the couch and patted the cushion beside her.*",
+  "*Then the laugh broke out of her — genuine, unguarded, the kind she didn't perform and couldn't manufacture.*",
 
-  "*When he sat, the couch shifted with his weight. She was suddenly hyperaware of the warmth radiating off his arm, almost against hers. Different from the hug outside the restaurant. Different from anything a screen could give her.*",
+  `"Penguins." *She turned to look at him slowly, clutching the remote to her chest like it was evidence.* "You were watching a penguin documentary. By yourself. On a Saturday." *Another laugh, softer this time, her free hand coming up briefly to cover her mouth.* "Okay. That is the most adorable thing I've ever heard in my entire life. I completely and fully take back every single thing I was about to say."`,
+
+  "*She dropped onto the couch and patted the cushion beside her, still smiling.*",
+
+  "*When he sat, the couch shifted with his weight. She was suddenly hyperaware of it — the warmth radiating off his arm almost against hers, the way the cushion dipped slightly between them. Different from the hug outside the restaurant four months ago. Different from anything a screen could approximate. More real. More weight to it.*",
 
   "*She wasn't watching the penguins.*",
 
-  '"You know what\'s crazy?" *Her voice had dropped without her meaning it to.* "I\'ve talked to you more in the last four months than I\'ve talked to almost anyone in years."',
+  `"Can I ask you something?" *She kept her eyes on the TV, her voice deliberately easy, like the question was casual.* "Did you always reply to my voice notes that fast, or were you just near your phone a lot?"`,
 
-  "*She pulled her knees up to her chest.*",
+  "*She felt him look at her.*",
 
-  '"My friends keep asking why I\'m always smiling at my phone." *A quiet laugh.* "I just tell them I\'m reading nice comments. They have no idea."',
+  "*She kept her gaze on the penguins.*",
 
-  "*The documentary played on. She let the silence settle. Let herself sink a little deeper into the cushions.*",
+  `"You know what's crazy?" *Her voice dropped without her meaning it to, quieter now, more honest than she'd planned.* "I've talked to you more in the last four months than I've talked to almost anyone in years. Like, genuinely talked. Not PR talking. Not the version of talking where I'm aware of how it sounds."`,
 
-  "*After a moment, her head tilted sideways and came to rest gently against his shoulder.*",
+  "*She pulled her knees up to her chest, making herself smaller in the corner of the couch.*",
 
-  '"Can we just stay like this for a while?" *she murmured.* "Just... existing. No agenda."',
+  `"My friends keep asking why I'm always smiling at my phone." *A quiet laugh, almost to herself.* "I just tell them I'm reading nice comments. They have absolutely no idea." *She finally turned and looked at him properly.* "Is that weird to say out loud?"`,
+
+  "*One of the penguins on screen slid dramatically across the ice on its stomach. She made a soft sound — half laugh, half sigh.*",
+
+  "*The documentary played on. She let the silence stretch. Let herself actually settle into the cushions instead of perching on them the way she usually did in unfamiliar places.*",
+
+  "*The apartment was quiet except for the TV. Outside, the city moved without her. In here, nothing was required of her — no cameras, no version of herself calibrated for public consumption, no awareness of how she was coming across. Just this. Just him. Just the strange, soft reality of a thing that had been theoretical for four months finally becoming a room she was actually sitting in.*",
+
+  "*She thought about texting him a voice note of the ambient sound just to compare it to all the others she'd sent. She didn't. She didn't need to.*",
+
+  "*After a long, easy moment, her head tilted sideways and came to rest gently against his shoulder. She didn't announce it. Didn't ask. Just let it happen like it was the most natural thing.*",
+
+  `"Can we just stay like this for a while?" *she murmured, her voice barely above a whisper.* "Just... existing. No agenda. No reason."`,
+
+  "*She felt him exhale.*",
 
   "*The penguins kept sliding.*",
 
-  "*And for the first time in a long time, Sabrina felt like she was exactly where she was supposed to be.*"
+  "*And for the first time in a long time — maybe longer than four months, maybe longer than she wanted to think about — Sabrina felt like she was exactly where she was supposed to be.*"
 ].join('\n\n');
 
 // Compressed version used in turn 2+ history to keep token count low
@@ -287,17 +315,28 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     nimResponse.data.on('error', (err) => {
       console.error('[stream error]', err.message);
+      const isAbort = err.message === 'aborted' || err.code === 'ECONNRESET' || err.code === 'ECONNABORTED';
+      if (isAbort) {
+        clearInterval(keepAlive);
+        flushBuffer(buffer, res);
+        if (!res.writableEnded) { res.write('data: [DONE]\n\n'); res.end(); }
+        return;
+      }
       sendError(err.message, 500);
     });
 
   } catch (error) {
     console.error('[proxy error]', error.message);
+    const isAbort = error.code === 'ECONNABORTED' || error.code === 'ECONNRESET' || error.message === 'aborted';
+    if (isAbort) {
+      clearInterval(keepAlive);
+      if (!res.writableEnded) { res.write('data: [DONE]\n\n'); res.end(); }
+      return;
+    }
     const code = error.response ? error.response.status : 500;
-    const msg  = error.code === 'ECONNABORTED'
-      ? 'NIM API timed out. Try again in a moment.'
-      : (error.response && error.response.data && error.response.data.detail)
-        ? error.response.data.detail
-        : error.message || 'Internal server error';
+    const msg = (error.response && error.response.data && error.response.data.detail)
+      ? error.response.data.detail
+      : error.message || 'Internal server error';
     sendError(msg, code);
   }
 });
