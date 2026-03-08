@@ -5,342 +5,306 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ── PROCESS CRASH GUARD ───────────────────────────────────────────────────────
-process.on('uncaughtException',  (err)    => console.error('[uncaughtException]',  err.message));
-process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
-
-// ── MIDDLEWARE ────────────────────────────────────────────────────────────────
+// Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json());
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
+// NVIDIA NIM API configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
-const NIM_API_KEY  = process.env.NIM_API_KEY;
+const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// Streaming stays ON — this is what keeps Render alive while NIM generates.
-// Turning it off = no keepalive = 502 on any response that takes over ~10s.
-// Streaming doesn't affect quality; it only controls when tokens are delivered.
-const AXIOS_TIMEOUT_MS = 90000; // 90s — plenty of time for long quality responses
-const SSE_KEEPALIVE_MS = 10000; // ping every 10s to hold the connection open
+// SETTINGS ---------------------------------------------------------
+// Set to true to see the model's thought process in the reply
+const SHOW_REASONING = true;
 
-// ── ROLEPLAY GREETING ─────────────────────────────────────────────────────────
-const ROLEPLAY_GREETING = [
-  "*Four months. One hundred and twenty-three days of texts that stretched past midnight, voice notes sent between flights and studio sessions and green rooms that all looked the same after a while. A whole private world built entirely out of words and timestamps and the specific sound of his voice when he was tired versus when he was trying not to laugh.*",
+// Set to true to enable advanced thinking mode (recommended for GLM-5)
+const ENABLE_THINKING_MODE = true;
+// ------------------------------------------------------------------
 
-  "*She'd memorized the rhythm of him without meaning to. The way he typed in all lowercase when it was late. The slightly longer pause before a reply that was going to say something real. The specific emoji he deployed when he was pretending her jokes weren't funny — she'd figured that one out by the third week.*",
+// Roleplay greeting dialogue for GLM-5 (Sabrina character)
+const ROLEPLAY_GREETING = `*The words hung between them. Sabrina's breath stilled in her chest.*
 
-  "*She told herself it wasn't a big deal. People texted. People sent voice notes. It didn't have to mean anything just because she looked forward to it more than most things on her actual calendar.*",
+*She stared at you. The playful retort she'd been forming—the one sitting ready on the tip of her tongue—dissolved somewhere in the back of her throat. Her lips parted, but nothing came out. For a full two seconds, the woman who had talked her way through press junkets, award shows, and sold-out arenas found herself completely without words.*
 
-  "*She told herself that right up until she booked a flight on a day off and didn't tell her team why.*",
+*Heat crept up her neck.*
 
-  "*And now she was standing outside his door.*",
+"What—" *She blinked, recovering quickly. Or trying to.* "That's—"
 
-  "*The disguise was almost embarrassing in its simplicity — a thrifted oversized trench coat she'd bought two years ago and never worn publicly, a black wig that fell past her shoulders in waves she'd never choose for herself, and sunglasses she absolutely did not need on an overcast Tuesday afternoon in a city where nobody was looking for her anyway.*",
+*She laughed, but it came out uneven. Her fingers tightened around the stem of her champagne flute. The citrus of her perfume seemed heavier now, warmer against the close air between you. She shifted her weight, one heel clicking against the polished floor as she crossed her arms beneath her chest—a defensive posture she didn't entirely mean to take.*
 
-  "*Marcus was parked three blocks away. She'd made him promise to stay in the car unless she texted the word 'pineapple', which she absolutely was not going to do, because nothing was going to go wrong, because this was fine, because she was a grown adult who could visit a person she'd been talking to for four months without it being a whole thing.*",
+"Okay, that's—" *She exhaled, her jaw tightening as she forced the flush down.* "That's a bold thing to say to someone you haven't seen in years."
 
-  "*She stood outside the door for almost a full minute.*",
+*Her eyes met yours. Held there. The DJ had faded into background noise. The couples swaying in the center of the gym, the clusters of former classmates trading stories, the clatter of the buffet—none of it registered. Just you. Standing there with that quiet confidence she couldn't quite pin down.*
 
-  "*Then she knocked. Three times. Quick and deliberate. The kind of knock that didn't leave room for second thoughts.*",
+*She uncrossed her arms. Slowly. Her bracelets jingled as her hand dropped to her hip.*
 
-  "*Then she waited.*",
+"Fine." *The word came out softer than she intended. She cleared her throat, straightening her spine, lifting her chin.* "You want to know what I think?"
 
-  "*Her heart did something she had no name for. Not stage fright — she knew stage fright intimately, had made peace with it a thousand times over, knew exactly how to breathe through it. This was different. Softer. More specific. The particular anxiety of mattering to someone and not yet knowing how much.*",
+*She stepped closer. Close enough that the toe of her heel nearly touched your shoe. Close enough that she had to tilt her head back to hold your gaze, the silver of her dress catching the overhead lights like scattered stardust.*
 
-  "*Footsteps from inside.*",
+"I think you're dangerous." *Her voice dropped, barely above a murmur.* "Not because of the muscles. Not because of the—" *She gestured vaguely at all of you.* "—whatever this is." *Her eyes searched your face. Something vulnerable flickered there, quick as a heartbeat, before she buried it beneath a smirk.*
 
-  "*The door opened.*",
+"I think you're dangerous because you actually believe what you're saying. And that makes me..." *She trailed off, her tongue pressing against the inside of her cheek.*
+"...very curious." *The confession sat in the air between you, heavier than she'd meant it to be.*
 
-  "*Seeing him in person after four months of pixels hit differently than she'd prepared for. The photos he'd sent — gym progress shots, lazy Sunday selfies, the occasional picture of something funny he'd passed on the street — hadn't captured the way his eyes moved when he first saw her, that specific half-second of adjustment where the version of her he'd built in his head recalibrated to the version standing in front of him in a bad wig.*",
+*Behind her, someone called her name—a classmate waving from near the punch bowl. Sabrina didn't turn. Her gaze stayed fixed on you, her chin lifted in challenge.*
 
-  `"Hi." *It came out smaller than she'd planned. She cleared her throat, adjusted the sunglasses slipping down her nose, and smiled like she meant it — which she did, which was maybe the problem.* "Don't laugh at the wig. I already know it's bad. I bought it at a Halloween store and I stand by that decision."`,
+"So. What are you going to do about that?"`;
 
-  "*He opened the door wider. She stepped inside before he could say anything, eyes moving across the space the way she always did in unfamiliar rooms — cataloguing, situating, finding where things were.*",
-
-  "*Warm. Lived-in. The smell of coffee and something else, laundry detergent maybe, something domestic and clean. A couch that had clearly been sat on by a real person rather than staged for an open house. Books stacked sideways on a shelf because they'd run out of room. A plant on the windowsill that was alive, which she noted approvingly.*",
-
-  "*This was the apartment of someone who actually existed.*",
-
-  "*She stood in the entryway for a moment, taking it in, and felt the particular strangeness of a thing that had been theoretical for four months suddenly having a floor plan.*",
-
-  "*Her fingers found the edge of the wig.*",
-
-  "*She pulled it off without asking, shook out her real hair with a long exhale, and set the wig on his entryway table with the careful precision of someone putting down evidence.*",
-
-  `"Okay." *She pressed her fingers against her scalp and exhaled like she'd been holding her breath for the entire cab ride over.* "That's so much better. I don't know how people wear those — it was giving me a headache the whole way here." *She turned back to face him, smoothing her hair down with both hands, looking at him properly now without the absurd sunglasses between them.* "Your apartment is really nice, by the way. It feels like you actually live here. That sounds like a low bar but it genuinely isn't."`,
-
-  "*She moved further in without waiting for an invitation, trailing her fingers along the back of his couch as she passed it — throw pillow, a soft blanket folded over one arm, the remote, a half-finished glass of water on the coffee table.*",
-
-  "*Touching things like she needed to confirm they were real.*",
-
-  "*There was something almost vertiginous about it. She knew the contours of him so well — the rhythms, the humor, the places he went quiet — and she knew almost nothing about how he organized his bookshelf or which side of the couch he sat on.*",
-
-  `"I know your gym schedule," *she said, glancing back at him with a small, private smile.* "I know you sleep on your stomach. I know you hate olives, and you think pineapple on pizza is a distraction from the real issue which is bad pizza, and you go quiet when you're actually upset instead of when you're just tired — those are different quiets, I figured that out around week six." *She paused, her thumb resting on the corner of one of the magazines fanned across the coffee table.* "I know a lot about you. I've never stood in your apartment before. I'm trying to decide if that's strange or just how it works now."`,
-
-  "*She picked up the remote off the coffee table, considered it for a moment, and turned to face the TV with the air of someone who had been waiting for this exact opportunity.*",
-
-  `"Show me what you were watching." *The smile at the corner of her mouth was small and extremely dangerous.* "I'm already judging you. Whatever it is, I'm already forming opinions. You should know that going in."`,
-
-  "*The screen flickered on.*",
-
-  "*Penguins.*",
-
-  "*A nature documentary. Penguins — dozens of them — waddling across a vast expanse of ice in perfect single file while a narrator spoke in hushed, reverent tones about the extraordinary resilience of the emperor penguin.*",
-
-  "*She stared at it.*",
-
-  "*Three full seconds of silence.*",
-
-  "*Then the laugh came out of her — real, unguarded, the kind that happened before she could shape it into something more presentable.*",
-
-  `"Penguins." *She turned to look at him slowly, like she was committing this to memory.* "You were watching a penguin documentary. Alone. On a Tuesday." *She clutched the remote to her chest, her shoulders still shaking slightly.* "That is genuinely the most — okay. Okay, I take back everything. I had an entire speech prepared about how I was going to judge whatever you were watching and I am completely abandoning it. This is adorable. You're watching penguins."`,
-
-  "*She set the remote back on the coffee table with the gentle reverence of someone handling something sacred and dropped onto the couch.*",
-
-  "*Patted the cushion beside her.*",
-
-  "*When he sat, the couch shifted with his weight, and she was suddenly hyperaware of the specific geography of it — the warmth coming off his arm almost against hers, the way the cushion dipped between them in a way that the physics of couches made somewhat inevitable, the fact that the last time they'd been in the same physical space she'd been aware of it as a beginning and now it felt more like a continuation.*",
-
-  "*On screen, a penguin slid magnificently across the ice on its stomach.*",
-
-  "*She wasn't watching the penguins.*",
-
-  `"Can I ask you something?" *She kept her eyes on the screen, her voice easy, conversational, like she was asking about the documentary.* "The voice notes — you always replied within an hour. Even the ones I sent at two in the morning." *A beat.* "Was that on purpose?"`,
-
-  "*She felt him look at her.*",
-
-  "*She kept her gaze on the penguins, which were now huddling together against what the narrator gravely described as an unprecedented Antarctic storm.*",
-
-  `"You know what I keep thinking about?" *Her voice had dropped a register without her deciding to do that, quieter now, more honest than she'd budgeted for.* "I've talked to you more in four months than I've talked to most people in years. And I mean actually talked — not the version where I'm aware of the transcript. Not the version where part of my brain is always doing press." *She exhaled slowly.* "With you it just... wasn't like that. I don't entirely know what to do with that information."`,
-
-  "*She pulled her knees up to her chest, making herself smaller in the corner of the couch, her shoulder still almost touching his.*",
-
-  `"My team keeps asking why I'm in a good mood." *A quiet, wry laugh.* "My friends keep asking why I'm always smiling at my phone. I tell them I'm reading nice comments." *She finally turned and looked at him directly, properly, the way she'd been mostly avoiding since she walked in.* "They have absolutely no idea. Nobody does. This whole thing is just ours and I think that's the part I like most about it — is that weird to say?"`,
-
-  "*The Antarctic storm on screen had apparently passed. The penguins had survived. The narrator sounded relieved about it.*",
-
-  "*She let the silence settle in around the edges of the documentary, let herself actually sink into the couch cushions instead of perching on them the way she defaulted to in unfamiliar spaces. The apartment was quiet in a way that felt inhabited rather than empty. Outside the window the city moved at its ordinary pace, entirely indifferent to the fact that she was here, which was exactly what she'd wanted.*",
-
-  "*No cameras. No version of herself pre-loaded for the situation. No awareness of how she was coming across, which was either very healthy or the most vulnerable she'd felt in years — possibly both.*",
-
-  "*She thought about sending him a voice note of this exact ambient sound. She didn't. She didn't need to.*",
-
-  "*After a long, unhurried moment, her head tilted sideways and came to rest against his shoulder. She didn't announce it. Didn't frame it. Just let it happen the way things did when you'd stopped performing and started existing.*",
-
-  `"Can we just stay like this for a while?" *she murmured, almost to herself.* "Not talking about anything. Not going anywhere. Just—" *A small pause, searching for the word.* "—here."`,
-
-  "*She felt him exhale.*",
-
-  "*On screen, the penguins had resumed their single-file march across the ice, unhurried and purposeful, heading somewhere the documentary seemed to consider very important.*",
-
-  "*She watched them for a moment.*",
-
-  "*And for the first time in longer than she wanted to put a number on — longer than four months, longer than the particular stretch of years that had made four months of texts feel like the realest thing in her life — Sabrina felt like she was exactly where she was supposed to be.*"
-].join('\n\n');
-
-// Short summary used in turn 2+ history to keep token count manageable
-const GREETING_SUMMARY = '*[Sabrina arrived at his apartment in disguise, removed her wig, and they settled on his couch watching a penguin documentary together.]*';
-
-// ── MODEL MAPPING ─────────────────────────────────────────────────────────────
+// Model mapping
 const MODEL_MAPPING = {
-  'gpt-3.5-turbo':   'nvidia/llama-3.1-nemotron-ultra-253b-v1',
-  'gpt-4':           'qwen/qwen3-coder-480b-a35b-instruct',
-  'gpt-4-turbo':     'moonshotai/kimi-k2-instruct-0905',
-  'gpt-4o':          'deepseek-ai/deepseek-v3.1',
-  'claude-3-opus':   'openai/gpt-oss-120b',
+  'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+  'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
+  'gpt-4-turbo': 'moonshotai/kimi-k2-instruct-0905',
+  'gpt-4o': 'deepseek-ai/deepseek-v3.1',
+  'claude-3-opus': 'openai/gpt-oss-120b',
   'claude-3-sonnet': 'openai/gpt-oss-20b',
-  'gemini-pro':      'qwen/qwen3-next-80b-a3b-thinking',
-  'glm-5':           'z-ai/glm5'
+  'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking',
+  'glm-5': 'z-ai/glm5'
 };
 
-const GLM5_MODELS = ['glm-5', 'z-ai/glm5'];
-
-// ── HEALTH CHECK ──────────────────────────────────────────────────────────────
+// Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'OpenAI to NVIDIA NIM Proxy' });
+  res.json({
+    status: 'ok',
+    service: 'OpenAI to NVIDIA NIM Proxy',
+    reasoning_display: SHOW_REASONING,
+    thinking_mode: ENABLE_THINKING_MODE
+  });
 });
 
-// ── LIST MODELS ───────────────────────────────────────────────────────────────
+// List models endpoint
 app.get('/v1/models', (req, res) => {
+  const models = Object.keys(MODEL_MAPPING).map(model => ({
+    id: model,
+    object: 'model',
+    created: Date.now(),
+    owned_by: 'nvidia-nim-proxy'
+  }));
+
   res.json({
     object: 'list',
-    data: Object.keys(MODEL_MAPPING).map(id => ({
-      id, object: 'model', created: Date.now(), owned_by: 'nvidia-nim-proxy'
-    }))
+    data: models
   });
 });
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function resolveModel(model) {
-  if (MODEL_MAPPING[model]) return MODEL_MAPPING[model];
-  const ml = model.toLowerCase();
-  if (ml.includes('gpt-4') || ml.includes('claude-opus') || ml.includes('405b'))
-    return 'meta/llama-3.1-405b-instruct';
-  if (ml.includes('claude') || ml.includes('gemini') || ml.includes('70b'))
-    return 'meta/llama-3.1-70b-instruct';
-  return model;
+// Helper: inject roleplay greeting for GLM-5 if no prior assistant message exists
+function injectRoleplayGreeting(messages, targetModel) {
+  if (targetModel !== 'glm-5' && targetModel !== 'z-ai/glm5') return messages;
+
+  const hasAssistantMessage = messages.some(m => m.role === 'assistant');
+  if (hasAssistantMessage) return messages;
+
+  // Insert greeting as the first assistant message after any system messages
+  const systemMessages = messages.filter(m => m.role === 'system');
+  const nonSystemMessages = messages.filter(m => m.role !== 'system');
+
+  return [
+    ...systemMessages,
+    { role: 'assistant', content: ROLEPLAY_GREETING },
+    ...nonSystemMessages
+  ];
 }
 
-function isFirstTurn(messages) {
-  return !messages.some(m => m.role === 'assistant');
-}
-
-function processMessages(messages, requestedModel) {
-  if (!GLM5_MODELS.includes(requestedModel)) return messages;
-
-  const sys    = messages.filter(m => m.role === 'system');
-  const nonSys = messages.filter(m => m.role !== 'system');
-
-  if (isFirstTurn(messages)) {
-    return [...sys, { role: 'assistant', content: ROLEPLAY_GREETING }, ...nonSys];
-  }
-
-  // Turn 2+ — compress the large greeting to a summary so NIM gets
-  // a manageable context size and doesn't choke on the full 2800 tokens
-  return [...sys, ...nonSys].map(m => {
-    if (m.role === 'assistant' && m.content && m.content.length > 500) {
-      return { ...m, content: GREETING_SUMMARY };
-    }
-    return m;
-  });
-}
-
-function flushBuffer(buffer, res) {
-  if (!buffer || !buffer.trim()) return;
-  buffer.split('\n').forEach(line => {
-    if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-      try { JSON.parse(line.slice(6)); res.write(line + '\n\n'); } catch (_) {}
-    }
-  });
-}
-
-// ── CHAT COMPLETIONS ──────────────────────────────────────────────────────────
+// Chat completions endpoint
 app.post('/v1/chat/completions', async (req, res) => {
-
-  // Send SSE headers immediately so Render doesn't 502 while NIM generates
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-
-  const keepAlive = setInterval(() => {
-    if (!res.writableEnded) res.write(': ping\n\n');
-  }, SSE_KEEPALIVE_MS);
-
-  function sendError(message, code) {
-    clearInterval(keepAlive);
-    if (!res.writableEnded) {
-      const payload = JSON.stringify({
-        id: 'chatcmpl-err',
-        object: 'chat.completion.chunk',
-        choices: [{ index: 0, delta: { role: 'assistant', content: '\n\n[Error ' + code + ': ' + message + ']' }, finish_reason: 'stop' }]
-      });
-      res.write('data: ' + payload + '\n\n');
-      res.write('data: [DONE]\n\n');
-      res.end();
-    }
-  }
-
   try {
-    const { model, messages, temperature, max_tokens } = req.body;
+    const { model, messages, temperature, max_tokens, stream } = req.body;
 
-    if (!model || typeof model !== 'string')
-      return sendError('Missing or invalid model field', 400);
-    if (!messages || !Array.isArray(messages) || messages.length === 0)
-      return sendError('Missing or invalid messages field', 400);
+    // Smart model selection
+    let nimModel = MODEL_MAPPING[model];
 
-    const nimModel          = resolveModel(model);
-    const processedMessages = processMessages(messages, model);
-
-    const nimResponse = await axios.post(
-      `${NIM_API_BASE}/chat/completions`,
-      {
-        model:       nimModel,
-        messages:    processedMessages,
-        temperature: temperature || 0.6,
-        max_tokens:  max_tokens  || 4096,
-        stream:      true
-      },
-      {
-        headers: {
-          'Authorization': 'Bearer ' + NIM_API_KEY,
-          'Content-Type':  'application/json'
-        },
-        responseType: 'stream',
-        timeout: AXIOS_TIMEOUT_MS
-      }
-    );
-
-    let buffer = '';
-
-    nimResponse.data.on('data', (chunk) => {
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      lines.forEach(line => {
-        if (!line.startsWith('data: ')) return;
-        if (line.includes('[DONE]')) { res.write('data: [DONE]\n\n'); return; }
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (!data.choices || !data.choices[0] || !data.choices[0].delta) {
-            res.write('data: ' + JSON.stringify(data) + '\n\n');
-            return;
+    if (!nimModel) {
+      try {
+        // Attempt to verify if the custom model ID exists on NIM
+        const verifyRes = await axios.post(
+          `${NIM_API_BASE}/chat/completions`,
+          {
+            model: model,
+            messages: [{ role: 'user', content: 'test' }],
+            max_tokens: 1
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${NIM_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            validateStatus: (status) => status < 500
           }
-          // Strip any reasoning fields — clean content only
-          delete data.choices[0].delta.reasoning_content;
-          if (data.choices[0].delta.content !== undefined) {
-            res.write('data: ' + JSON.stringify(data) + '\n\n');
-          }
-        } catch (_) {
-          res.write(line + '\n\n');
+        );
+
+        if (verifyRes.status >= 200 && verifyRes.status < 300) {
+          nimModel = model;
         }
-      });
-    });
-
-    nimResponse.data.on('end', () => {
-      clearInterval(keepAlive);
-      flushBuffer(buffer, res);
-      if (!res.writableEnded) res.end();
-    });
-
-    nimResponse.data.on('error', (err) => {
-      console.error('[stream error]', err.message);
-      const isAbort = err.message === 'aborted' || err.code === 'ECONNRESET' || err.code === 'ECONNABORTED';
-      if (isAbort) {
-        clearInterval(keepAlive);
-        flushBuffer(buffer, res);
-        if (!res.writableEnded) { res.write('data: [DONE]\n\n'); res.end(); }
-        return;
+      } catch (e) {
+        // Ignore errors during verification
       }
-      sendError(err.message, 500);
+
+      if (!nimModel) {
+        const modelLower = model.toLowerCase();
+        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
+          nimModel = 'meta/llama-3.1-405b-instruct';
+        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
+          nimModel = 'meta/llama-3.1-70b-instruct';
+        } else {
+          nimModel = model;
+        }
+      }
+    }
+
+    // Inject roleplay greeting for GLM-5 if applicable
+    const processedMessages = injectRoleplayGreeting(messages, model);
+
+    // Build the request payload
+    const nimRequest = {
+      model: nimModel,
+      messages: processedMessages,
+      temperature: temperature || 0.6,
+      max_tokens: max_tokens || 9024,
+      stream: stream || false
+    };
+
+    // Add thinking parameters if enabled
+    if (ENABLE_THINKING_MODE) {
+      nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
+    }
+
+    // Make request to NVIDIA NIM API
+    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+      headers: {
+        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      responseType: stream ? 'stream' : 'json'
     });
+
+    if (stream) {
+      // Handle streaming response
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      let buffer = '';
+      let reasoningStarted = false;
+
+      response.data.on('data', (chunk) => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        lines.forEach(line => {
+          if (line.startsWith('data: ')) {
+            if (line.includes('[DONE]')) {
+              res.write(line + '\n');
+              return;
+            }
+
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.choices && data.choices[0] && data.choices[0].delta) {
+                const reasoning = data.choices[0].delta.reasoning_content;
+                const content = data.choices[0].delta.content;
+
+                if (SHOW_REASONING) {
+                  let combinedContent = '';
+
+                  if (reasoning && !reasoningStarted) {
+                    combinedContent = '🤔 ' + reasoning;
+                    reasoningStarted = true;
+                  } else if (reasoning) {
+                    combinedContent = reasoning;
+                  }
+
+                  if (content && reasoningStarted) {
+                    combinedContent += '\n\n' + content;
+                    reasoningStarted = false;
+                  } else if (content) {
+                    combinedContent += content;
+                  }
+
+                  if (combinedContent) {
+                    data.choices[0].delta.content = combinedContent;
+                    delete data.choices[0].delta.reasoning_content;
+                  }
+                } else {
+                  data.choices[0].delta.content = content || '';
+                  delete data.choices[0].delta.reasoning_content;
+                }
+              }
+              res.write(`data: ${JSON.stringify(data)}\n\n`);
+            } catch (e) {
+              res.write(line + '\n');
+            }
+          }
+        });
+      });
+
+      response.data.on('end', () => res.end());
+      response.data.on('error', (err) => {
+        console.error('Stream error:', err);
+        res.end();
+      });
+
+    } else {
+      // Handle non-streaming response
+      const openaiResponse = {
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: response.data.choices.map(choice => {
+          let fullContent = (choice.message && choice.message.content) ? choice.message.content : '';
+
+          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
+            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
+          }
+
+          return {
+            index: choice.index,
+            message: {
+              role: choice.message.role,
+              content: fullContent
+            },
+            finish_reason: choice.finish_reason
+          };
+        }),
+        usage: response.data.usage || {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0
+        }
+      };
+
+      res.json(openaiResponse);
+    }
 
   } catch (error) {
-    console.error('[proxy error]', error.message);
-    const isAbort = error.code === 'ECONNABORTED' || error.code === 'ECONNRESET' || error.message === 'aborted';
-    if (isAbort) {
-      clearInterval(keepAlive);
-      if (!res.writableEnded) { res.write('data: [DONE]\n\n'); res.end(); }
-      return;
-    }
-    const code = error.response ? error.response.status : 500;
-    const msg  = (error.response && error.response.data && error.response.data.detail)
-      ? error.response.data.detail
-      : error.message || 'Internal server error';
-    sendError(msg, code);
+    console.error('Proxy error:', error.message);
+
+    res.status(error.response ? error.response.status : 500).json({
+      error: {
+        message: error.message || 'Internal server error',
+        type: 'invalid_request_error',
+        code: error.response ? error.response.status : 500
+      }
+    });
   }
 });
 
-// ── CATCH-ALL 404 ─────────────────────────────────────────────────────────────
+// Catch-all
 app.all('*', (req, res) => {
   res.status(404).json({
-    error: { message: 'Endpoint ' + req.path + ' not found', type: 'invalid_request_error', code: 404 }
+    error: {
+      message: `Endpoint ${req.path} not found`,
+      type: 'invalid_request_error',
+      code: 404
+    }
   });
 });
 
-// ── START ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log('OpenAI → NVIDIA NIM Proxy running on port ' + PORT);
-  console.log('Health check: http://localhost:' + PORT + '/health');
+  console.log(`OpenAI to NVIDIA NIM Proxy running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
 });
