@@ -91,19 +91,48 @@ app.get('/v1/models', (req, res) => {
   });
 });
 
+// Style rules injected as a system message on every GLM-5 request.
+// Tells the model exactly what formatting is forbidden so it never
+// produces the header/divider/over-narrated style regardless of lorebook.
+const STYLE_RULES = `STRICT WRITING RULES — follow these on every single response without exception:
+
+NEVER use any of the following:
+- Time/date/location/weather/context headers like [⏳ Time: ...] [📅 Date: ...] [📍 Location: ...] [👥 Characters: ...] [📜 Context: ...]
+- Horizontal dividers like --- or ═══ or ───
+- Bracketed metadata of any kind
+- Numbered lists or bullet points inside the roleplay
+- Parenthetical stage directions like (pause) or (softly)
+- Sentences that explicitly state a character's internal analysis like "She was cataloging the sensation" or "filing it away for later"
+- Over-explained emotion — never tell the reader what a feeling means, only show what the body does
+
+ALWAYS write like this instead:
+- Action and dialogue woven together in the same paragraph, never separated
+- Short punchy lines for impact, longer flowing lines for tension
+- Characters speak at least twice per scene — dialogue is never isolated from action
+- Physical detail over emotional label — not "she felt nervous" but "her thumb found the edge of his sleeve"
+- Let silence and unfinished sentences do the work
+- Match the length to the moment — a quiet beat gets two lines, a turning point gets a full paragraph`;
+
 // Inject the roleplay greeting as the first assistant message for GLM-5,
 // but only when there is no existing assistant message in the history yet.
-// Preserves all system messages (character card, lorebook) before the greeting.
+// Also injects STYLE_RULES as the first system message on every request
+// so the model never uses the forbidden header/divider format.
 function injectRoleplayGreeting(messages, targetModel) {
   if (targetModel !== 'glm-5' && targetModel !== 'z-ai/glm5') return messages;
 
-  const hasAssistantMessage = messages.some(m => m.role === 'assistant');
-  if (hasAssistantMessage) return messages;
-
+  const styleMsg = { role: 'system', content: STYLE_RULES };
   const systemMessages = messages.filter(m => m.role === 'system');
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
+  const hasAssistantMessage = messages.some(m => m.role === 'assistant');
 
+  if (hasAssistantMessage) {
+    // Not first turn — just prepend style rules, leave everything else alone
+    return [styleMsg, ...systemMessages, ...nonSystemMessages];
+  }
+
+  // First turn — prepend style rules + inject greeting
   return [
+    styleMsg,
     ...systemMessages,
     { role: 'assistant', content: ROLEPLAY_GREETING },
     ...nonSystemMessages
