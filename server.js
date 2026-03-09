@@ -15,7 +15,7 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 
 // SETTINGS ---------------------------------------------------------
 // Set to true to see the model's thought process in the reply
-const SHOW_REASONING = true; 
+const SHOW_REASONING = false; 
 
 // Set to true to enable advanced thinking mode (recommended for GLM-5)
 const ENABLE_THINKING_MODE = true; 
