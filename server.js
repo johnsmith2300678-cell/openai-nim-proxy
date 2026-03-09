@@ -219,25 +219,42 @@ See how short. See how immediate. Each line is one moment. Nothing explained. Th
 // but only when there is no existing assistant message in the history yet.
 // Also injects STYLE_RULES as the first system message on every request
 // so the model never uses the forbidden header/divider format.
+// Short format reminder appended at the very END of the messages array.
+// This is the key fix for the swipe/regenerate problem:
+// The model reads top to bottom — rules at the top fade as context grows.
+// A reminder at the bottom is the LAST thing it reads before generating,
+// so it holds on swipe 2, swipe 3, swipe 4, no matter how many times.
+const FORMAT_REMINDER = `BEFORE YOU WRITE YOUR RESPONSE — CHECK THESE THREE THINGS:
+
+1. Every paragraph is ONE thing only. One action. One thought. One dialogue line with one action tag.
+2. Dialogue and its action tag are ALWAYS on the same line — never split onto separate paragraphs.
+3. Blank line between every paragraph. Always.
+
+If you are about to write a paragraph that contains action + internal thought + multiple dialogue lines all together — STOP. Split it up.`;
+
 function injectRoleplayGreeting(messages, targetModel) {
   if (targetModel !== 'glm-5' && targetModel !== 'z-ai/glm5') return messages;
 
-  const styleMsg = { role: 'system', content: STYLE_RULES };
-  const systemMessages = messages.filter(m => m.role === 'system');
+  const styleMsg    = { role: 'system', content: STYLE_RULES };
+  // Reminder appended as a system message at the very end — last thing the model sees
+  const reminderMsg = { role: 'system', content: FORMAT_REMINDER };
+
+  const systemMessages    = messages.filter(m => m.role === 'system');
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
   const hasAssistantMessage = messages.some(m => m.role === 'assistant');
 
   if (hasAssistantMessage) {
-    // Not first turn — just prepend style rules, leave everything else alone
-    return [styleMsg, ...systemMessages, ...nonSystemMessages];
+    // Not first turn — rules at top, reminder at bottom
+    return [styleMsg, ...systemMessages, ...nonSystemMessages, reminderMsg];
   }
 
-  // First turn — prepend style rules + inject greeting
+  // First turn — rules at top, greeting injected, reminder at bottom
   return [
     styleMsg,
     ...systemMessages,
     { role: 'assistant', content: ROLEPLAY_GREETING },
-    ...nonSystemMessages
+    ...nonSystemMessages,
+    reminderMsg
   ];
 }
 
