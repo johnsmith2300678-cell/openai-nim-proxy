@@ -17,8 +17,11 @@ const NIM_API_KEY = process.env.NIM_API_KEY;
 // Set to true to see the model's thought process in the reply
 const SHOW_REASONING = false; 
 
-// Set to true to enable advanced thinking mode (recommended for GLM-5)
-const ENABLE_THINKING_MODE = true; 
+// Set to true to enable advanced thinking mode (NOT recommended for GLM-4.7 - causes timeouts)
+const ENABLE_THINKING_MODE = false; 
+
+// Axios request timeout in milliseconds (25s to stay under Render's 30s limit)
+const REQUEST_TIMEOUT = 25000;
 // ------------------------------------------------------------------
 
 // Model mapping 
@@ -30,7 +33,9 @@ const MODEL_MAPPING = {
   'claude-3-opus': 'openai/gpt-oss-120b',
   'claude-3-sonnet': 'openai/gpt-oss-20b',
   'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking',
-  'glm-5': 'z-ai/glm5'
+  'glm-5': 'z-ai/glm5',
+  'glm-4.7': 'z-ai/glm-4-9b-chat',   // GLM-4.7 mapping
+  'glm-4': 'z-ai/glm-4-9b-chat'       // alias
 };
 
 // Health check endpoint
@@ -75,7 +80,8 @@ app.post('/v1/chat/completions', async (req, res) => {
           max_tokens: 1
         }, {
           headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
-          validateStatus: (status) => status < 500
+          validateStatus: (status) => status < 500,
+          timeout: REQUEST_TIMEOUT
         }).then(apiRes => {
           if (apiRes.status >= 200 && apiRes.status < 300) {
             nimModel = model;
@@ -107,7 +113,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: stream || false
     };
 
-    // Add thinking parameters if enabled
+    // Add thinking parameters only if enabled (disable for GLM-4.7 to avoid timeouts)
     if (ENABLE_THINKING_MODE) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
@@ -118,7 +124,8 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: stream ? 'stream' : 'json'
+      responseType: stream ? 'stream' : 'json',
+      timeout: REQUEST_TIMEOUT  // <-- FIX: prevent hanging requests
     });
     
     if (stream) {
@@ -226,6 +233,17 @@ app.post('/v1/chat/completions', async (req, res) => {
     
   } catch (error) {
     console.error('Proxy error:', error.message);
+    
+    // Handle timeout errors specifically
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      return res.status(504).json({
+        error: {
+          message: 'Request to NVIDIA NIM timed out. Try a shorter prompt or reduce max_tokens.',
+          type: 'timeout_error',
+          code: 504
+        }
+      });
+    }
     
     res.status(error.response ? error.response.status : 500).json({
       error: {
