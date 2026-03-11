@@ -514,57 +514,98 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     }
 
+    // ── FORCE STREAMING ON ─────────────────────────────────────
+    // Render's proxy kills connections silent after ~30s with no data (504).
+    // Streaming sends bytes continuously, keeping the connection alive.
+    // We ALWAYS stream to NIM regardless of what the client requested.
+    const clientWantsStream = stream || false;
+    const forceStream = true;
+    // ────────────────────────────────────────────────────────────
+
     // Build the request payload
     const nimRequest = {
       model: nimModel,
       messages: messages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
-      stream: stream || false
+      max_tokens: max_tokens || 800, // JanitorAI cuts off long replies anyway — keep it tight
+      stream: forceStream
     };
 
     if (ENABLE_THINKING_MODE) {
       nimRequest.extra_body = { chat_template_kwargs: { thinking: true } };
     }
 
-    // Make request to NVIDIA NIM API (with timeout + retry on 502/504/503/429)
+    // ── Open SSE connection BEFORE calling NIM ─────────────────
+    // This immediately sends headers to Render, resetting its 30s clock.
+    // We then send SSE comment heartbeats every 20s while waiting for NIM.
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // disable Nginx buffering on Render
+    res.flushHeaders(); // flush headers to client immediately
+
+    // Heartbeat: sends a blank SSE comment every 20s so Render never sees silence
+    const heartbeat = setInterval(() => {
+      try { res.write(': heartbeat\n\n'); } catch (_) {}
+    }, 10000); // every 10s — well under Render's 30s silence limit
+
+    // Helper to clean up heartbeat
+    const stopHeartbeat = () => clearInterval(heartbeat);
+    // ────────────────────────────────────────────────────────────
+
+    // Make request to NVIDIA NIM API (with retry on 502/504/503/429)
     let response;
     const nimRequestOptions = {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      responseType: stream ? 'stream' : 'json',
-      timeout: 120000 // 2 min hard cap — prevents Render from hanging forever
+      responseType: 'stream',
+      timeout: 45000 // 45s — JanitorAI times out around 30-60s so no point waiting longer
     };
 
     const MAX_RETRIES = 2;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, nimRequestOptions);
-        break; // success — exit retry loop
+        break;
       } catch (nimErr) {
         const status = nimErr.response ? nimErr.response.status : null;
         const retryable = !status || status === 502 || status === 503 || status === 504 || status === 429;
         if (retryable && attempt < MAX_RETRIES) {
-          const wait = attempt * 1500; // 1.5s then 3s
+          const wait = attempt * 1500;
           console.warn(`[NIM] Attempt ${attempt} failed (${status || nimErr.code}). Retrying in ${wait}ms...`);
           await new Promise(r => setTimeout(r, wait));
         } else {
-          throw nimErr; // non-retryable or out of retries — goes to main catch
+          stopHeartbeat();
+          // Headers already sent — write error as SSE then close
+          try {
+            const errPayload = JSON.stringify({
+              error: { message: nimErr.message || 'NIM API error', type: 'api_error', code: status || 500 }
+            });
+            res.write(`data: ${errPayload}\n\n`);
+            res.write('data: [DONE]\n\n');
+          } catch (_) {}
+          res.end();
+          return;
         }
       }
     }
 
-    if (stream) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
+    // Always handle as stream (since we forced stream: true above)
+    if (true) {
 
       let buffer = '';
       let reasoningStarted = false;
+      let fullCollectedContent = ''; // used to reassemble for non-streaming clients
+      let firstChunk = true;
 
       response.data.on('data', (chunk) => {
+        if (firstChunk) {
+          stopHeartbeat(); // real data is flowing — no more need for heartbeat pings
+          firstChunk = false;
+        }
+
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
@@ -572,7 +613,9 @@ app.post('/v1/chat/completions', async (req, res) => {
         lines.forEach(line => {
           if (line.startsWith('data: ')) {
             if (line.includes('[DONE]')) {
-              res.write(line + '\n');
+              if (clientWantsStream) {
+                res.write(line + '\n');
+              }
               return;
             }
 
@@ -612,71 +655,81 @@ app.post('/v1/chat/completions', async (req, res) => {
                   delete data.choices[0].delta.reasoning_content;
                 }
               }
-              res.write(`data: ${JSON.stringify(data)}\n\n`);
+              if (clientWantsStream) {
+                res.write(`data: ${JSON.stringify(data)}\n\n`);
+              } else {
+                // Collect content for non-streaming response
+                const piece = data.choices?.[0]?.delta?.content || '';
+                fullCollectedContent += piece;
+              }
             } catch (e) {
-              res.write(line + '\n');
+              if (clientWantsStream) res.write(line + '\n');
             }
           }
         });
       });
 
-      response.data.on('end', () => res.end());
+      response.data.on('end', () => {
+        stopHeartbeat();
+        if (!clientWantsStream) {
+          // Client wanted a normal JSON response — send assembled content now
+          const openaiResponse = {
+            id: `chatcmpl-${Date.now()}`,
+            object: 'chat.completion',
+            created: Math.floor(Date.now() / 1000),
+            model: model,
+            choices: [{
+              index: 0,
+              message: { role: 'assistant', content: fullCollectedContent },
+              finish_reason: 'stop'
+            }],
+            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+          };
+          res.setHeader('Content-Type', 'application/json');
+          res.json(openaiResponse);
+        } else {
+          res.write('data: [DONE]\n\n');
+          res.end();
+        }
+      });
+
       response.data.on('error', (err) => {
+        stopHeartbeat();
         console.error('[Stream] Stream error mid-response:', err.message);
-        // Headers already sent — we can't change status code,
-        // but we can send a final SSE error event so the client knows what happened
         try {
           const errPayload = JSON.stringify({
             error: { message: 'Stream interrupted: ' + err.message, type: 'stream_error' }
           });
           res.write(`data: ${errPayload}\n\n`);
           res.write('data: [DONE]\n\n');
-        } catch (_) { /* ignore if socket already closed */ }
+        } catch (_) {}
         res.end();
       });
 
-    } else {
-      const openaiResponse = {
-        id: `chatcmpl-${Date.now()}`,
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: response.data.choices.map(choice => {
-          let fullContent = choice.message && choice.message.content ? choice.message.content : '';
-
-          if (SHOW_REASONING && choice.message && choice.message.reasoning_content) {
-            fullContent = '🤔 ' + choice.message.reasoning_content + '\n\n' + fullContent;
-          }
-
-          return {
-            index: choice.index,
-            message: {
-              role: choice.message.role,
-              content: fullContent
-            },
-            finish_reason: choice.finish_reason
-          };
-        }),
-        usage: response.data.usage || {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0
-        }
-      };
-
-      res.json(openaiResponse);
-    }
+    } // end if(true) stream handler
 
   } catch (error) {
     console.error('Proxy error:', error.message);
-
-    res.status(error.response ? error.response.status : 500).json({
-      error: {
-        message: error.message || 'Internal server error',
-        type: 'invalid_request_error',
-        code: error.response ? error.response.status : 500
-      }
-    });
+    // Only send error response if headers haven't been sent yet
+    if (!res.headersSent) {
+      res.status(error.response ? error.response.status : 500).json({
+        error: {
+          message: error.message || 'Internal server error',
+          type: 'invalid_request_error',
+          code: error.response ? error.response.status : 500
+        }
+      });
+    } else {
+      // Headers already sent (SSE opened) — send error as SSE event
+      try {
+        const errPayload = JSON.stringify({
+          error: { message: error.message || 'Internal server error', type: 'proxy_error' }
+        });
+        res.write(`data: ${errPayload}\n\n`);
+        res.write('data: [DONE]\n\n');
+      } catch (_) {}
+      res.end();
+    }
   }
 });
 
