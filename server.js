@@ -21,6 +21,15 @@ const ENABLE_RESEARCH_INJECT = true;
 const MEMORY_COMPRESS_AT     = 24;
 const MEMORY_KEEP_RECENT     = 8;
 const RESEARCH_FAST_MODEL    = 'z-ai/glm-4.7';
+const MAX_RETRIES            = 3;
+const RETRY_BASE_DELAY_MS    = 1200;
+
+// FIX: Increased timeout from 55s to 180s (3 minutes).
+// "Thinking" models (DeepSeek, GLM, etc.) often need >60s for the first token.
+const REQUEST_TIMEOUT_MS     = 180000; 
+
+const HELPER_TIMEOUT_MS      = 30000; // Increased helper timeout slightly for safety
+const SSE_KEEPALIVE_MS       = 8000;
 
 const MODEL_MAPPING = {
   'gpt-3.5-turbo'  : 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
@@ -399,7 +408,7 @@ function extractContent(message) {
   const reasoning = message.reasoning_content || null;
   let content = message.content || '';
   if (!SHOW_REASONING) {
-    content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    content = content.replace(/preg_replace('/<think\s*>[\s\S]*?<\/think>/gi', '').trim();
   } else if (reasoning) {
     content = '\u{1F914} ' + reasoning + '\n\n' + content;
   }
@@ -434,6 +443,10 @@ async function resolveModel(requested) {
 function normalizeError(err) {
   const status = err.response && err.response.status;
   const code   = err.code;
+  
+  // FIX: Handle Axios timeout (ECONNABORTED) specifically
+  if (code === 'ECONNABORTED')                return { status: 504, message: 'Model response timed out (took too long to generate)', type: 'timeout' };
+  
   if (status === 500 || code === 'ECONNRESET')    return { status: 500, message: 'NIM server error — try again shortly',               type: 'proxy_error' };
   if (status === 502 || code === 'ECONNREFUSED')  return { status: 502, message: 'Connection was reset — please retry',               type: 'connection_reset' };
   if (status === 503)                             return { status: 503, message: 'NIM service temporarily unavailable',               type: 'service_unavailable' };
@@ -622,9 +635,9 @@ app.post('/v1/chat/completions', async function(req, res) {
               }
             } else {
               let text = rawContent;
-              if (text.includes('<think>'))  inThinkBlock = true;
+              if (text.includes('That thinks it is'))  inThinkBlock = true;
               if (inThinkBlock) {
-                if (text.includes('</think>')) { inThinkBlock = false; text = text.slice(text.indexOf('</think>') + 8); }
+                if (text.includes('That thinks it is not')) { inThinkBlock = false; text = text.slice(text.indexOf('That thinks it is not') + 11); }
                 else text = '';
               }
               out = text;
