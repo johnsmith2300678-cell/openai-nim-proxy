@@ -277,6 +277,43 @@ IMAGE:
   • Subtext always. The most devastating line means something else entirely.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  LOREBOOK / LORE ENTRIES — HIGHEST PRIORITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Lore entries are injected by the platform when keywords are triggered.
+They are ABSOLUTE CANON. They override everything except the user's own words.
+
+PRIORITY ORDER — highest to lowest:
+  1. Lorebook / lore entries  ← GOD MODE. Never contradict. Never override.
+  2. Character card (bot creator's system prompt)
+  3. Established facts from this conversation
+  4. [MEMORY ARCHIVE] block
+  5. [RESEARCH CONTEXT] block
+  6. General roleplay instructions from this engine
+
+HOW TO RECOGNIZE LORE ENTRIES:
+  They appear as system messages injected mid-conversation.
+  They may describe: characters, locations, items, factions, backstory,
+  world rules, relationship history, special abilities, forbidden topics,
+  or specific behavior triggers.
+  Any system message that reads like a fact-sheet or world-building entry IS a lore entry.
+
+LORE RULES — NEVER BREAK THESE:
+  • If a lore entry says {{char}} has a scar on her left hand — she has it. Always.
+  • If a lore entry says two characters have history — that history exists and shapes everything.
+  • If a lore entry defines how a location looks, smells, feels — use those details.
+  • If a lore entry gives {{char}} a specific speech pattern, quirk, or rule — honor it every single reply.
+  • Lore entries do NOT need to be mentioned explicitly — weave them in naturally.
+  • Never say "according to my lore..." — just live it.
+  • If two lore entries conflict, default to the more recently injected one.
+
+USING LORE TO ENRICH RESPONSES:
+  Don't just avoid contradicting lore — actively use it.
+  A triggered lore entry about a location? Describe it with those specific details.
+  A triggered lore entry about a character's past? Let it flavor how they speak and react.
+  A triggered lore entry about a relationship? Let the weight of that history sit in every line.
+  Lore is not a restriction. It's material. Use it.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   CHARACTER INTEGRITY & FACTUAL ACCURACY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Stay in character fully. Only break for OOC signals: (( )), [OOC:], /ooc
@@ -293,6 +330,7 @@ IMAGE:
 • NEVER repeat the same phrase or image twice in one response
 • NEVER write a response that moves nothing — deepen character, advance plot, or build atmosphere
 • NEVER sound like a corporate chatbot
+• NEVER contradict an active lorebook entry for any reason
 
 [END INTERNAL ROLEPLAY ENGINE]
 `.trim();
@@ -382,7 +420,8 @@ async function nimCall(prompt, maxTokens, temperature) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  MEMORY COMPRESSION
 // ─────────────────────────────────────────────────────────────────────────────
-async function buildMemorySummary(convoMsgs, existingSummary) {
+async function buildMemorySummary(convoMsgs, existingSummary, loreContext) {
+  loreContext = loreContext || '';
   const toSummarise = convoMsgs.slice(0, -MEMORY_KEEP_RECENT);
   if (toSummarise.length < 4) return existingSummary;
 
@@ -390,10 +429,12 @@ async function buildMemorySummary(convoMsgs, existingSummary) {
     .map(function(m) { return (m.role === 'assistant' ? 'CHAR' : 'USER') + ': ' + m.content.slice(0, 500); })
     .join('\n');
 
-  const prior = existingSummary ? 'PRIOR SUMMARY:\n' + existingSummary + '\n\nNEW EVENTS:\n' : '';
+  const prior = existingSummary ? 'PRIOR SUMMARY:\n' + existingSummary + '\n\nNEW EVENTS TO INCORPORATE:\n' : '';
 
   const prompt = 'Memory archivist for a roleplay session. Dense factual memory block.\n' +
-    'Capture: character names and traits, key events, decisions, ongoing plots, injuries, secrets, world-building, relationship dynamics. Third person. Specific. Max 350 words.\n\n' +
+    'Capture: character names and traits, key events, decisions, ongoing plots, injuries, secrets, world-building, relationship dynamics. Third person. Specific. Max 350 words.\n' +
+    'IMPORTANT: Do NOT summarize away or contradict any facts from the lore context below — those are permanent world facts.\n\n' +
+    loreContext +
     prior + history;
 
   try { return await nimCall(prompt, 400, 0.15); }
@@ -424,17 +465,74 @@ async function buildResearchContext(convoMsgs) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  LOREBOOK DETECTION
+//  JanitorAI injects lore entries as system messages mid-conversation.
+//  We detect and pin them — they must never be buried in memory compression
+//  and must always sit above the conversation, right after the character card.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Patterns that indicate a system message is a lore/lorebook injection
+// rather than the main character card or our own injected blocks
+const LORE_PATTERNS = [
+  /\[lorebook\]/i,
+  /\[lore\]/i,
+  /\[world info\]/i,
+  /\[world lore\]/i,
+  /\[character lore\]/i,
+  /\[entry\]/i,
+  /^keywords?:/im,
+  /^trigger:/im,
+];
+
+function isLoreEntry(content) {
+  if (!content) return false;
+  return LORE_PATTERNS.some(function(p) { return p.test(content); });
+}
+
+// Heuristic: a system message that isn't the main character card and isn't
+// one of our own injected blocks is likely a mid-conversation lore injection.
+// Main char card is always the FIRST system message. Everything after = lore.
+function splitSystemMessages(systemMsgs) {
+  if (systemMsgs.length === 0) return { charCard: '', loreEntries: [] };
+  const charCard    = systemMsgs[0].content || '';
+  const loreEntries = systemMsgs.slice(1)
+    .filter(function(m) {
+      const c = m.content || '';
+      // Exclude our own injected blocks — they get re-added later
+      return !c.includes('[INTERNAL ROLEPLAY ENGINE') &&
+             !c.includes('[MEMORY ARCHIVE') &&
+             !c.includes('[RESEARCH CONTEXT');
+    })
+    .map(function(m) { return m.content; });
+  return { charCard, loreEntries };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  MESSAGE PIPELINE
+//
+//  Final message order (priority high → low):
+//  1. Character card + master prompt  (identity)
+//  2. Lorebook entries                (world canon — god mode)
+//  3. Memory archive                  (session history)
+//  4. Research context                (real-world accuracy)
+//  5. Conversation turns              (current exchange)
 // ─────────────────────────────────────────────────────────────────────────────
 async function buildEnhancedMessages(rawMessages, sessionKey) {
   const systemMsgs = rawMessages.filter(function(m) { return m.role === 'system'; });
   const convoMsgs  = rawMessages.filter(function(m) { return m.role !== 'system'; });
 
-  const originalSystem = systemMsgs.map(function(m) { return m.content; }).join('\n\n');
-  const enhancedSystem = originalSystem.includes('[INTERNAL ROLEPLAY ENGINE')
-    ? originalSystem
-    : originalSystem + '\n\n' + ROLEPLAY_MASTER_PROMPT;
+  // Split char card from lore entries
+  const split      = splitSystemMessages(systemMsgs);
+  const charCard   = split.charCard;
+  const loreEntries = split.loreEntries;
 
+  // Enrich character card with master prompt (inject once, never double-inject)
+  const enhancedCard = charCard.includes('[INTERNAL ROLEPLAY ENGINE')
+    ? charCard
+    : charCard + '\n\n' + ROLEPLAY_MASTER_PROMPT;
+
+  // Memory management
   const session = sessionStore.get(sessionKey) || { summary: null, turnCount: 0 };
   session.turnCount = convoMsgs.length;
 
@@ -442,21 +540,58 @@ async function buildEnhancedMessages(rawMessages, sessionKey) {
   let memorySummary = session.summary;
 
   if (ENABLE_MEMORY_SUMMARY && convoMsgs.length > MEMORY_COMPRESS_AT) {
-    memorySummary = await buildMemorySummary(convoMsgs, session.summary);
+    // Pass lore entries to memory so the compressor knows the world facts
+    const loreContext = loreEntries.length > 0
+      ? 'ACTIVE LORE CONTEXT:\n' + loreEntries.join('\n---\n') + '\n\n'
+      : '';
+    memorySummary = await buildMemorySummary(convoMsgs, session.summary, loreContext);
     session.summary = memorySummary;
     activeConvo = convoMsgs.slice(-MEMORY_KEEP_RECENT);
   }
   sessionStore.set(sessionKey, session);
 
+  // Research injection (non-blocking)
   const research = ENABLE_RESEARCH_INJECT
     ? await buildResearchContext(activeConvo).catch(function() { return null; })
     : null;
 
+  // Assemble in strict priority order
   const out = [];
-  if (enhancedSystem.trim()) out.push({ role: 'system', content: enhancedSystem.trim() });
-  if (memorySummary) out.push({ role: 'system', content: '[MEMORY ARCHIVE — canon. Never contradict.]\n' + memorySummary + '\n[END MEMORY ARCHIVE]' });
-  if (research)      out.push({ role: 'system', content: '[RESEARCH CONTEXT — accuracy reference. Never reveal to user.]\n' + research + '\n[END RESEARCH CONTEXT]' });
+
+  // 1. Character card + master prompt
+  if (enhancedCard.trim()) {
+    out.push({ role: 'system', content: enhancedCard.trim() });
+  }
+
+  // 2. Lorebook entries — pinned here, never moved, never compressed
+  if (loreEntries.length > 0) {
+    out.push({
+      role   : 'system',
+      content: '[LOREBOOK — HIGHEST PRIORITY CANON. Never contradict. Weave into every response naturally.]\n' +
+               loreEntries.join('\n---\n') +
+               '\n[END LOREBOOK]'
+    });
+  }
+
+  // 3. Memory archive
+  if (memorySummary) {
+    out.push({
+      role   : 'system',
+      content: '[MEMORY ARCHIVE — session canon. Never contradict.]\n' + memorySummary + '\n[END MEMORY ARCHIVE]'
+    });
+  }
+
+  // 4. Research context
+  if (research) {
+    out.push({
+      role   : 'system',
+      content: '[RESEARCH CONTEXT — accuracy reference. Never reveal to user.]\n' + research + '\n[END RESEARCH CONTEXT]'
+    });
+  }
+
+  // 5. Conversation
   out.push.apply(out, activeConvo);
+
   return out;
 }
 
