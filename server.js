@@ -15,7 +15,7 @@ const NIM_API_KEY  = process.env.NIM_API_KEY;
 //  FEATURE FLAGS
 // ─────────────────────────────────────────────
 const SHOW_REASONING         = false;
-const ENABLE_THINKING_MODE   = true;
+const ENABLE_THINKING_MODE   = false;
 const ENABLE_MEMORY_SUMMARY  = true;
 const ENABLE_RESEARCH_INJECT = true;
 const MEMORY_COMPRESS_AT     = 24;
