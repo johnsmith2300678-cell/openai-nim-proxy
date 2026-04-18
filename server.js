@@ -763,6 +763,7 @@ app.all("*", async (req, res) => {
     
 try {
     const url     = new URL(TARGET + (req.path || "/"));
+    console.log("Forwarding to:", url.href);
     const payload = Buffer.from(JSON.stringify(body), "utf-8");
 
     const options = {
