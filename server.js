@@ -762,47 +762,86 @@ app.all("*", async (req, res) => {
   }
     
 try {
-    const url = new URL("https://integrate.api.nvidia.com/v1/chat/completions");
+    const url     = new URL(TARGET + (req.path || "/"));
     const payload = Buffer.from(JSON.stringify(body), "utf-8");
-    console.log("Sending to:", url.href);
-    console.log("Model:", body?.model);
-    console.log("Auth:", process.env.NIM_API_KEY ? "KEY SET" : "NO KEY");
 
-    const options = {
-      hostname: url.hostname,
-      path:     url.pathname + url.search,
-      method:   "POST",
-      timeout:  300000,
-      headers: {
-        "content-type":   "application/json",
-        "content-length": payload.length,
-        "authorization":  `Bearer ${process.env.NIM_API_KEY}`,
-        "accept":         "text/event-stream",
-      },
+    const makeRequest = (attemptsLeft) => {
+      const options = {
+        hostname: url.hostname,
+        path:     url.pathname + url.search,
+        method:   req.method,
+        timeout:  300000,
+        headers: {
+          "content-type":   "application/json",
+          "content-length": payload.length,
+          "authorization":  req.headers["authorization"] || "",
+          "accept":         req.headers["accept"] || "*/*",
+        },
+      };
+
+      const proxyReq = https.request(options, (proxyRes) => {
+        if (!res.headersSent) {
+          res.status(proxyRes.statusCode);
+          Object.entries(proxyRes.headers).forEach(([k, v]) => {
+            try { res.setHeader(k, v); } catch (_) {}
+          });
+        }
+
+        let stallTimer = null;
+
+        const resetStallTimer = () => {
+          if (stallTimer) clearTimeout(stallTimer);
+          stallTimer = setTimeout(() => {
+            console.warn("Stream stalled — retrying...");
+            proxyReq.destroy();
+            if (attemptsLeft > 1 && !res.headersSent) {
+              makeRequest(attemptsLeft - 1);
+            } else if (!res.headersSent) {
+              res.status(504).json({ error: "Modal kept stalling. Try again." });
+            }
+          }, 30000); // 30 seconds of no data = stalled
+        };
+
+        resetStallTimer();
+
+        proxyRes.on("data", (chunk) => {
+          resetStallTimer();
+          res.write(chunk);
+        });
+
+        proxyRes.on("end", () => {
+          if (stallTimer) clearTimeout(stallTimer);
+          res.end();
+        });
+
+        proxyRes.on("error", (err) => {
+          if (stallTimer) clearTimeout(stallTimer);
+          console.error("Response error:", err.message);
+          if (!res.headersSent) res.status(500).json({ error: err.message });
+        });
+      });
+
+      proxyReq.on("error", (err) => {
+        console.error("Request error:", err.message);
+        if (attemptsLeft > 1 && !res.headersSent) {
+          console.warn("Retrying after error...");
+          makeRequest(attemptsLeft - 1);
+        } else if (!res.headersSent) {
+          res.status(500).json({ error: err.message });
+        }
+      });
+
+      proxyReq.on("timeout", () => {
+        console.error("Request timed out");
+        proxyReq.destroy();
+        if (!res.headersSent) res.status(504).json({ error: "Modal took too long to respond" });
+      });
+
+      proxyReq.write(payload);
+      proxyReq.end();
     };
 
-    const proxyReq = https.request(options, (proxyRes) => {
-      console.log("NIM status:", proxyRes.statusCode);
-      res.status(proxyRes.statusCode);
-      Object.entries(proxyRes.headers).forEach(([k, v]) => {
-        try { res.setHeader(k, v); } catch (_) {}
-      });
-      proxyRes.pipe(res);
-    });
-
-    proxyReq.on("error", (err) => {
-      console.error("Request error:", err.message);
-      if (!res.headersSent) res.status(500).json({ error: err.message });
-    });
-
-    proxyReq.on("timeout", () => {
-      console.error("Request timed out");
-      proxyReq.destroy();
-      if (!res.headersSent) res.status(504).json({ error: "Timed out" });
-    });
-
-    proxyReq.write(payload);
-    proxyReq.end();
+    makeRequest(3); // tries up to 3 times
 
   } catch (err) {
     console.error("Handler error:", err.message);
