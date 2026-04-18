@@ -769,7 +769,7 @@ try {
       headers: {
         "content-type":   "application/json",
         "content-length": payload.length,
-        "authorization":  req.headers["authorization"] || "",
+        "authorization":  `Bearer ${process.env.NIM_API_KEY}`,
         "accept":         req.headers["accept"] || "*/*",
       },
     };
