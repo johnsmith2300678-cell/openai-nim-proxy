@@ -762,7 +762,7 @@ app.all("*", async (req, res) => {
   }
     
 try {
-    const url     = new URL(TARGET + (req.path || "/"));
+    const url = new URL("https://integrate.api.nvidia.com/v1/chat/completions");
     console.log("Forwarding to:", url.href);
     const payload = Buffer.from(JSON.stringify(body), "utf-8");
 
