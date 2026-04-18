@@ -757,7 +757,7 @@ app.all("*", async (req, res) => {
 
   }
   if (body && body.model !== undefined) {
-    body.model = "z-ai/glm4_7";
+    body.model = "z-ai/glm4.7";
   }
     
 try {
