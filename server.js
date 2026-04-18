@@ -763,23 +763,26 @@ app.all("*", async (req, res) => {
     
 try {
     const url = new URL("https://integrate.api.nvidia.com/v1/chat/completions");
-    console.log("Forwarding to:", url.href);
     const payload = Buffer.from(JSON.stringify(body), "utf-8");
+    console.log("Sending to:", url.href);
+    console.log("Model:", body?.model);
+    console.log("Auth:", process.env.NIM_API_KEY ? "KEY SET" : "NO KEY");
 
     const options = {
       hostname: url.hostname,
       path:     url.pathname + url.search,
-      method:   req.method,
+      method:   "POST",
       timeout:  300000,
       headers: {
         "content-type":   "application/json",
         "content-length": payload.length,
         "authorization":  `Bearer ${process.env.NIM_API_KEY}`,
-        "accept":         req.headers["accept"] || "*/*",
+        "accept":         "text/event-stream",
       },
     };
 
     const proxyReq = https.request(options, (proxyRes) => {
+      console.log("NIM status:", proxyRes.statusCode);
       res.status(proxyRes.statusCode);
       Object.entries(proxyRes.headers).forEach(([k, v]) => {
         try { res.setHeader(k, v); } catch (_) {}
@@ -795,7 +798,7 @@ try {
     proxyReq.on("timeout", () => {
       console.error("Request timed out");
       proxyReq.destroy();
-      if (!res.headersSent) res.status(504).json({ error: "Modal took too long to respond" });
+      if (!res.headersSent) res.status(504).json({ error: "Timed out" });
     });
 
     proxyReq.write(payload);
