@@ -754,6 +754,7 @@ app.all("*", async (req, res) => {
     body.top_p             = body.top_p             ?? 0.95;
     body.frequency_penalty = body.frequency_penalty ?? 0.6;
     body.presence_penalty  = body.presence_penalty  ?? 0.5;
+    body.stream            = true;
 
   }
   if (body && body.model !== undefined) {
