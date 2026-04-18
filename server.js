@@ -4,7 +4,7 @@ const https = require("https");
 
 const app = express();
 
-const TARGET = "https://integrate.api.nvidia.com/v1";
+const TARGET = "https://integrate.api.nvidia.com";
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -755,6 +755,9 @@ app.all("*", async (req, res) => {
     body.frequency_penalty = body.frequency_penalty ?? 0.6;
     body.presence_penalty  = body.presence_penalty  ?? 0.5;
 
+  }
+  if (body && body.model !== undefined) {
+    body.model = "z-ai/glm4_7";
   }
     
 try {
